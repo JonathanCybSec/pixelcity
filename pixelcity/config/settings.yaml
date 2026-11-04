@@ -1,0 +1,50 @@
+# Réglages généraux de la simulation.
+# Les heures s'écrivent TOUJOURS entre guillemets : "07:30".
+
+# Graine maîtresse : même graine => même simulation, à l'identique.
+seed: 42
+
+time:
+  # 1 tick = 10 secondes simulées (8 640 ticks par jour).
+  tick_seconds: 10
+  # Durée réelle d'une journée simulée à la vitesse x1.
+  real_minutes_per_day: 10
+  # Vitesses accessibles avec les touches 1 à 4.
+  speeds: [1, 2, 5, 10]
+  # Protection anti « spirale de la mort » : au-delà, la simulation ralentit
+  # au lieu de geler la fenêtre.
+  max_ticks_per_frame: 500
+
+window:
+  width: 1280
+  height: 720
+  fps: 60
+  start_zoom: 2
+
+# Vitesse de marche, en tuiles par minute simulée.
+walk_speed_tiles_per_minute: 2.0
+
+# Jauges de 0 à 100 (100 = besoin parfaitement satisfait).
+# - decay_per_hour : baisse naturelle par heure simulée
+# - critical       : en dessous, l'agent interrompt son plan pour y remédier
+# - satisfied      : au-dessus, il considère le besoin comblé (hystérésis)
+needs:
+  hunger:  {decay_per_hour: 6.0, critical: 20, satisfied: 90, initial: 75}
+  energy:  {decay_per_hour: 4.0, critical: 12, satisfied: 85, initial: 80}
+  hygiene: {decay_per_hour: 2.5, critical: 15, satisfied: 90, initial: 80}
+  fun:     {decay_per_hour: 3.0, critical: 10, satisfied: 80, initial: 70}
+
+# Effet de chaque activité sur les besoins, en points PAR HEURE, qui
+# s'ajoutent à la baisse naturelle. Un lieu peut surcharger ces valeurs
+# (voir `effects` dans city.yaml).
+activity_effects:
+  sleep:   {energy: 16, hunger: 3, hygiene: 1.5, fun: 3}
+  eat:     {hunger: 150, fun: 2}
+  hygiene: {hygiene: 240}
+  work:    {energy: -1}
+  leisure: {fun: 20}
+  shop:    {fun: 4}
+  relax:   {energy: 2, fun: 5}
+
+# Marcher fatigue un peu.
+walking_effects: {energy: -1}

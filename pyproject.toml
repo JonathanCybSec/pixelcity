@@ -1,0 +1,66 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pixelcity"
+version = "0.1.0"
+description = "Bac à sable de simulation de vie en pixel art, avec des habitants pilotés par des IA."
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    # Attention : ne JAMAIS installer « pygame » à côté de « pygame-ce ».
+    # Les deux fournissent le même module `pygame` et s'écrasent mutuellement.
+    "pygame-ce>=2.5,<2.6",
+    "pytmx>=3.32,<4",
+    "PyYAML>=6.0,<7",
+    "pydantic>=2.7,<3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "mypy>=1.10",
+    "ruff>=0.5",
+    "types-PyYAML",
+]
+
+[project.scripts]
+pixelcity = "pixelcity.main:main"
+
+[tool.setuptools.packages.find]
+include = ["pixelcity*"]
+
+[tool.setuptools.package-data]
+# Les données (YAML, carte, tileset) doivent voyager avec le code :
+# indispensable pour `pip install .` aujourd'hui et pour PyInstaller à l'étape 8.
+pixelcity = ["config/*.yaml", "assets/maps/*"]
+
+# --------------------------------------------------------------------------- #
+# Outils
+# --------------------------------------------------------------------------- #
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+files = ["pixelcity", "tests", "tools"]
+
+[[tool.mypy.overrides]]
+# pytmx n'est pas typé : on le dit explicitement, module par module,
+# plutôt que de désactiver la vérification des imports pour tout le projet.
+module = ["pytmx", "pytmx.*"]
+ignore_missing_imports = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "N", "RUF"]
+# RUF001-003 signalent les caractères Unicode « ambigus » : faux positifs
+# permanents sur un projet aux textes et commentaires en français.
+ignore = ["RUF001", "RUF002", "RUF003"]

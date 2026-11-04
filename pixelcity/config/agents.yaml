@@ -1,0 +1,81 @@
+# Les habitants.
+#
+# Toute la fiche est déjà là (personnalité, valeurs), même si l'étape 1 n'en
+# exploite qu'une partie : à l'étape 2, ces informations nourriront les
+# prompts du LLM qui planifiera leurs journées.
+#
+# personality : Big Five (OCEAN), chaque trait entre 0 et 1.
+# Les heures s'écrivent entre guillemets.
+
+agents:
+  - id: marcel
+    name: Marcel Dupont
+    age: 56
+    job: Boulanger
+    home: maison_dupont
+    color: "#d08c45"
+    sleep: {wake: "04:00", bed: "21:00", weekend_wake: "07:30"}
+    work:
+      place: boulangerie
+      schedule:
+        mon: "05:00-12:30"
+        tue: "05:00-12:30"
+        wed: "05:00-12:30"
+        thu: "05:00-12:30"
+        fri: "05:00-12:30"
+        sat: "05:00-12:30"
+    personality:
+      openness: 0.35
+      conscientiousness: 0.9
+      extraversion: 0.65
+      agreeableness: 0.75
+      neuroticism: 0.3
+    values: [le travail bien fait, la famille, la tradition]
+
+  - id: lea
+    name: Léa Martin
+    age: 29
+    job: Comptable
+    home: immeuble_tilleuls
+    color: "#5b8def"
+    sleep: {wake: "07:00", bed: "23:00", weekend_wake: "09:00"}
+    work:
+      place: bureaux
+      schedule:
+        mon: "09:00-17:30"
+        tue: "09:00-17:30"
+        wed: "09:00-17:30"
+        thu: "09:00-17:30"
+        fri: "09:00-17:00"
+    personality:
+      openness: 0.7
+      conscientiousness: 0.75
+      extraversion: 0.8
+      agreeableness: 0.6
+      neuroticism: 0.45
+    values: [l'indépendance, l'amitié, la curiosité]
+
+  - id: karim
+    name: Karim Benali
+    age: 41
+    job: Professeur des écoles
+    home: maison_benali
+    color: "#4caf7d"
+    sleep: {wake: "06:30", bed: "22:30", weekend_wake: "08:00"}
+    work:
+      place: ecole
+      # Mercredi après-midi libre, comme dans beaucoup d'écoles françaises.
+      schedule:
+        mon: "08:00-16:30"
+        tue: "08:00-16:30"
+        wed: "08:00-12:00"
+        thu: "08:00-16:30"
+        fri: "08:00-16:30"
+      lunch_at_work: true
+    personality:
+      openness: 0.8
+      conscientiousness: 0.7
+      extraversion: 0.45
+      agreeableness: 0.85
+      neuroticism: 0.35
+    values: [la transmission, la justice, la famille]
