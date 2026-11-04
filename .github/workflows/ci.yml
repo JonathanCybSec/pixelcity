@@ -1,0 +1,41 @@
+# Intégration continue : à chaque push sur main et à chaque pull request,
+# GitHub lance le lint, le typage et les tests sur Linux ET sur Windows.
+# Windows compte double ici : c'est la cible finale (.exe) et c'est là que se
+# cachent les pièges d'encodage et de chemins.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  tests:
+    name: Tests (${{ matrix.os }})
+    strategy:
+      fail-fast: false # on veut le résultat des deux OS, même si l'un échoue
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      # Pas d'écran sur les machines de CI : pilotes vidéo et audio factices.
+      SDL_VIDEODRIVER: dummy
+      SDL_AUDIODRIVER: dummy
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Installer
+        run: python -m pip install -e ".[dev]"
+      - name: Lint (ruff)
+        run: |
+          ruff check .
+          ruff format --check .
+      - name: Typage (mypy --strict)
+        run: mypy
+      - name: Tests (pytest)
+        run: pytest
+      - name: Une semaine en headless
+        run: python -m pixelcity --headless --days 7 --quiet

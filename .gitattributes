@@ -1,0 +1,9 @@
+# Fins de ligne : LF dans le dépôt ET sur le disque, sous Windows comme sous
+# Linux. Sans ça, Git sous Windows convertit en CRLF et chaque fichier peut
+# apparaître « modifié » d'une machine à l'autre.
+* text=auto eol=lf
+
+# Fichiers binaires : jamais de conversion ni de diff texte.
+*.png binary
+*.ico binary
+*.ttf binary

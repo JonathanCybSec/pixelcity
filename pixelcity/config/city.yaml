@@ -1,0 +1,96 @@
+# Les lieux de la ville et leurs règles.
+#
+# La GÉOGRAPHIE (où se trouve chaque lieu, où est sa porte) vit dans la carte
+# Tiled ; ce fichier décrit les RÈGLES (horaires, capacité, activités).
+# Les deux sont reliés par `id` = propriété `place_id` de l'objet dans Tiled.
+#
+# - activities       : ce que tout le monde peut faire ici, aux heures d'ouverture
+# - staff_activities : réservé aux employés, à toute heure
+# - hours            : "always" ou "HH:MM-HH:MM" (une plage peut passer minuit)
+# - effects          : surcharge des effets par défaut de settings.yaml
+
+map: mvp.tmx
+
+places:
+  # --- Résidentiel -------------------------------------------------------
+  - id: maison_dupont
+    name: Maison Dupont
+    kind: home
+    capacity: 4
+    hours: always
+    activities: [sleep, eat, hygiene, relax]
+
+  - id: maison_benali
+    name: Maison Benali
+    kind: home
+    capacity: 5
+    hours: always
+    activities: [sleep, eat, hygiene, relax]
+
+  - id: immeuble_tilleuls
+    name: Immeuble des Tilleuls
+    kind: home
+    capacity: 24
+    hours: always
+    activities: [sleep, eat, hygiene, relax]
+
+  # --- Commerce et restauration -----------------------------------------
+  - id: boulangerie
+    name: Boulangerie du Coin
+    kind: bakery
+    capacity: 10
+    hours: "06:30-19:30"
+    days: [mon, tue, wed, thu, fri, sat]
+    activities: [eat]
+    staff_activities: [work]
+
+  - id: cafe
+    name: Café des Arts
+    kind: cafe
+    capacity: 25
+    hours: "07:30-21:00"
+    activities: [eat, leisure]
+
+  - id: supermarche
+    name: Supermarché Fraîcheur
+    kind: supermarket
+    capacity: 80
+    hours: "08:30-20:00"
+    days: [mon, tue, wed, thu, fri, sat]
+    activities: [shop]
+
+  # --- Travail -------------------------------------------------------------
+  - id: bureaux
+    name: Bureaux Horizon
+    kind: office
+    capacity: 60
+    hours: "07:00-20:00"
+    days: [mon, tue, wed, thu, fri]
+    staff_activities: [work]
+
+  - id: ecole
+    name: École Jules-Ferry
+    kind: school
+    capacity: 200
+    hours: "07:30-18:30"
+    days: [mon, tue, wed, thu, fri]
+    staff_activities: [work, eat]
+
+  # --- Loisirs -------------------------------------------------------------
+  - id: salle_de_sport
+    name: Salle de sport Olympe
+    kind: gym
+    capacity: 30
+    hours: "07:00-22:00"
+    activities: [leisure]
+    effects:
+      leisure: {fun: 18, energy: -6, hygiene: -10}
+
+  - id: parc
+    name: Parc du Lac
+    kind: park
+    capacity: 100
+    hours: "07:00-21:30"
+    activities: [leisure]
+    effects:
+      leisure: {fun: 18, energy: 1}
