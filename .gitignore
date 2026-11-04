@@ -1,0 +1,25 @@
+# Environnements et caches Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Build PyInstaller (étape 8)
+build/
+dist/
+*.spec
+
+# Secrets : les clés d'API vivront dans .env (étape 2), jamais dans Git
+.env
+
+# Sorties de simulation
+*.jsonl
+saves/
+
+# Éditeurs
+.vscode/
+.idea/
