@@ -23,21 +23,27 @@ Inspiré du papier *Generative Agents* (Stanford, 2023, la ville « Smallville �
 
 Python **3.12** est requis. Sous Windows, travaille en natif (pas sous WSL) : PyInstaller ne sait pas fabriquer un `.exe` depuis Linux, et pygame sous WSL passe par une couche d'affichage moins fiable.
 
+`py --list` affiche les versions de Python installées. Si la 3.12 manque : `winget install -e --id Python.Python.3.12` (ou l'installateur Windows de la dernière 3.12 sur python.org).
+
 ```powershell
 # Windows (PowerShell)
 py -3.12 -m venv .venv
 .venv\Scripts\Activate.ps1
-pip install -e ".[dev]"
+python --version                    # doit afficher Python 3.12.x
+python -m pip install -e ".[dev]"
 ```
 
 ```bash
 # Linux / macOS
 python3.12 -m venv .venv
 source .venv/bin/activate
-pip install -e ".[dev]"
+python --version
+python -m pip install -e ".[dev]"
 ```
 
 `-e` installe le projet en mode « éditable » : tes modifications du code sont prises en compte sans réinstaller.
+
+> Vérifie toujours `python --version` après l'activation, et installe avec `python -m pip` plutôt que `pip` : un autre outil (un agent IA, Anaconda...) peut avoir placé son propre Python plus tôt dans le PATH. `python -m pip` installe pour l'interpréteur que tu viens de vérifier ; `pip` seul prend le premier `pip.exe` trouvé. `Get-Command python` (PowerShell) ou `which python` (Linux) montre lequel est utilisé.
 
 > Si PowerShell refuse d'exécuter `Activate.ps1` (« l'exécution de scripts est désactivée sur ce système »), autorise une fois les scripts locaux : `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.
 
