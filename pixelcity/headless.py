@@ -52,6 +52,10 @@ def run_headless(
             separator = "" if event.kind is EventKind.DAY_STARTED else f"{stamp}  "
             print(separator + describe(event, agent_names, place_names), file=out)
 
+    # Les événements émis AVANT l'abonnement (le lancement de la simulation)
+    # sont rejoués, pour que le journal et l'export soient complets.
+    for past_event in list(sim.events):
+        on_event(past_event)
     sim.events.subscribe(on_event)
     ticks = round(days * sim.clock.ticks_per_day)
     start = time.perf_counter()

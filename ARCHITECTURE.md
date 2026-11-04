@@ -20,12 +20,12 @@ flowchart TB
     end
     data["config/*.yaml (Pydantic)<br/>assets/maps/mvp.tmx"]
 
-    app -- "tick()" --> sim
-    headless -- "tick()" --> sim
-    app -. "lecture seule" .-> sim
+    app -->|"tick()"| sim
+    headless -->|"tick()"| sim
+    app -.->|lecture seule| sim
     sim --> clock & world & agents & events
     agents --> planner
-    data -- "chargement au démarrage" --> sim
+    data -->|chargement au démarrage| sim
 ```
 
 **Convention** : identifiants du code en anglais (standard de l'industrie), commentaires et textes affichés en français.
@@ -104,13 +104,16 @@ Les blocs de travail sont **ponctuels** : la routine fait partir l'agent assez t
 stateDiagram-v2
     [*] --> ACTIVE: départ endormi chez soi
     ACTIVE --> WALKING: nouvelle cible ailleurs
+    ACTIVE --> IDLE: aucun chemin, nouvel essai 30 min plus tard
     IDLE --> WALKING: chemin trouvé
     WALKING --> ACTIVE: arrivée, accès autorisé
     WALKING --> WAITING: lieu fermé, ouvre bientôt
+    WALKING --> WALKING: refus (fermé, complet), repart vers un autre lieu
     WAITING --> ACTIVE: ouverture
     WAITING --> IDLE: attente trop longue, repli
-    WALKING --> IDLE: refus (fermé, complet), repli
 ```
+
+Un agent `ACTIVE` qui enchaîne deux activités au même endroit (douche puis petit-déjeuner) reste `ACTIVE` : seule l'activité change.
 
 À chaque tick : plan du jour → besoins → urgences → choix de la cible (dérogation, sinon bloc du plan, avec départ anticipé) → machine à états. Les **dérogations** (`Override`) gèrent les urgences (faim critique : aller manger au lieu ouvert le plus proche) et les replis (lieu fermé : un autre lieu équivalent, sinon la maison), sans jamais réécrire le plan.
 
@@ -132,6 +135,8 @@ Les YAML sont validés par Pydantic au démarrage (on valide aux frontières, on
 | Une `StrEnum` hérite de `str` | Une propriété `Weekday.index` écrasait `str.index()` en silence. `mypy --strict` l'a signalé. | Propriété renommée `number`. |
 | YAML 1.1 et les heures | Sans guillemets, `23:00` devient le nombre 1380 (base 60), mais `07:00` reste une chaîne. | Les heures sont exigées entre guillemets, avec un message d'erreur explicite. |
 | Équilibrage des besoins | Les premières valeurs faisaient tomber l'hygiène à 15 chaque nuit et le loisir à 0 en fin de semaine. | Réglages ajustés en simulant 3 semaines sur plusieurs graines (écart min-max de chaque jauge). |
+| Encodage de la console Windows | Une sortie redirigée vers un fichier utilise cp1252, qui ne connaît pas « ─ » ni « → » : `print()` plante. | `main.py` force l'UTF-8 sur stdout/stderr ; les tests lancent leurs sous-processus en UTF-8. |
+| Tester sans Windows | Le code est développé sous Linux, la cible est Windows. | CI GitHub Actions sur Ubuntu **et** Windows à chaque pull request. |
 
 ## Préparé pour la suite
 

@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 
+import pygame
 import pytest
 
+from pixelcity.engine.app import GameApp
 from pixelcity.engine.camera import Camera
 from pixelcity.sim.simulation import Simulation
 
@@ -41,20 +43,19 @@ def test_offset_entier() -> None:
 
 
 @pytest.fixture
-def app(monkeypatch: pytest.MonkeyPatch, make_sim: Callable[..., Simulation]):  # type: ignore[no-untyped-def]
-    """Application complète avec le pilote vidéo factice de SDL : aucune fenêtre ne s'ouvre."""
+def app(monkeypatch: pytest.MonkeyPatch, make_sim: Callable[..., Simulation]) -> Iterator[GameApp]:
+    """Application complète avec le pilote vidéo factice de SDL : aucune fenêtre ne s'ouvre.
+
+    Le pilote est lu par `pygame.display.init()`, pas par `import pygame` :
+    il suffit donc de poser la variable avant de créer l'application.
+    """
     monkeypatch.setenv("SDL_VIDEODRIVER", "dummy")
-    monkeypatch.setenv("PYGAME_HIDE_SUPPORT_PROMPT", "1")
-    import pygame
-
-    from pixelcity.engine.app import GameApp
-
     instance = GameApp(make_sim())
     yield instance
     pygame.quit()
 
 
-def test_le_rendu_tourne_sans_ecran(app) -> None:  # type: ignore[no-untyped-def]
+def test_le_rendu_tourne_sans_ecran(app: GameApp) -> None:
     app.overlay.enabled = True
     for _ in range(5):
         app.frame(1 / 60)
@@ -65,18 +66,18 @@ def test_le_rendu_tourne_sans_ecran(app) -> None:  # type: ignore[no-untyped-def
     assert 250 < app.sim.clock.tick < 330
 
 
-def test_la_pause_fige_la_simulation(app) -> None:  # type: ignore[no-untyped-def]
+def test_la_pause_fige_la_simulation(app: GameApp) -> None:
     app.paused = True
     app.frame(1.0)
     assert app.sim.clock.tick == 0
 
 
-def test_protection_spirale_de_la_mort(app) -> None:  # type: ignore[no-untyped-def]
+def test_protection_spirale_de_la_mort(app: GameApp) -> None:
     executed = app._step_simulation(1000.0)  # une « image » de 1000 s : la machine rame
     assert executed == app.max_ticks_per_frame
     assert app.accumulator <= 1.0  # le retard est abandonné, pas accumulé
 
 
-def test_la_boucle_principale_s_arrete_proprement(app) -> None:  # type: ignore[no-untyped-def]
+def test_la_boucle_principale_s_arrete_proprement(app: GameApp) -> None:
     app.run(max_frames=3)
     assert app.sim.clock.tick >= 0

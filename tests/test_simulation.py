@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from collections.abc import Callable
@@ -101,20 +102,37 @@ def test_le_noyau_tourne_sans_pygame() -> None:
         "assert 'pygame' not in sys.modules, 'pygame importé par le noyau !'\n"
         "print('ok')\n"
     )
-    result = subprocess.run(
-        [sys.executable, "-c", script], cwd=ROOT, capture_output=True, text=True, check=False
-    )
+    result = _run_python("-c", script)
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == "ok"
 
 
 def test_cli_headless() -> None:
-    result = subprocess.run(
-        [sys.executable, "-m", "pixelcity", "--headless", "--days", "0.5", "--quiet"],
+    result = _run_python("-m", "pixelcity", "--headless", "--days", "0.5")
+    assert result.returncode == 0, result.stderr
+    assert "Simulation lancée (graine 42" in result.stdout
+    assert "empreinte du journal" in result.stdout
+
+
+def test_cli_refuse_une_duree_negative() -> None:
+    result = _run_python("-m", "pixelcity", "--headless", "--days", "-1")
+    assert result.returncode == 2
+    assert "strictement positif" in result.stderr
+
+
+def _run_python(*args: str) -> subprocess.CompletedProcess[str]:
+    """Lance un interpréteur Python neuf, en UTF-8 des deux côtés.
+
+    Sans `PYTHONIOENCODING` et `encoding="utf-8"`, sous Windows, l'enfant
+    écrirait en cp1252 et le parent décoderait avec l'encodage local : les
+    accents des messages d'erreur feraient planter... le test lui-même.
+    """
+    return subprocess.run(
+        [sys.executable, *args],
         cwd=ROOT,
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
+        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
         check=False,
     )
-    assert result.returncode == 0, result.stderr
-    assert "empreinte du journal" in result.stdout

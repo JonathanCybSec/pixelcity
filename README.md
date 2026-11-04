@@ -39,6 +39,8 @@ pip install -e ".[dev]"
 
 `-e` installe le projet en mode « éditable » : tes modifications du code sont prises en compte sans réinstaller.
 
+> Si PowerShell refuse d'exécuter `Activate.ps1` (« l'exécution de scripts est désactivée sur ce système »), autorise une fois les scripts locaux : `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.
+
 > N'installe jamais le paquet `pygame` à côté de `pygame-ce` : les deux fournissent le même module et s'écrasent mutuellement.
 
 ## Lancer

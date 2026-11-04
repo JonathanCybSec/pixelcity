@@ -8,10 +8,10 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 
-# Build PyInstaller (étape 8)
+# Build PyInstaller (étape 8). Le fichier .spec, lui, sera versionné :
+# c'est la configuration du build, pas un produit du build.
 build/
 dist/
-*.spec
 
 # Secrets : les clés d'API vivront dans .env (étape 2), jamais dans Git
 .env

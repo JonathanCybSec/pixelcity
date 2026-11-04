@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import Callable
+
+# Doit être posé AVANT le premier `import pygame` (masque sa bannière) :
+# conftest.py est chargé par pytest avant tous les modules de test.
+os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
 
 import pytest
 
