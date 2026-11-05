@@ -37,16 +37,21 @@ FOLLOW_HEAD_OFFSET = 12  # la caméra vise le buste, pas les pieds
 
 
 class GameApp:
-    def __init__(self, sim: Simulation) -> None:
+    def __init__(self, sim: Simulation, screen: pygame.Surface | None = None) -> None:
         self.sim = sim
         settings = sim.config.settings
-        # On n'initialise que ce dont on a besoin : pas de module audio, qui
-        # échoue sur les machines sans carte son (serveurs, CI, VM).
-        pygame.display.init()
-        pygame.font.init()
         window = settings.window
-        self.screen = pygame.display.set_mode((window.width, window.height), pygame.RESIZABLE)
-        pygame.display.set_caption("PixelCity")
+        # Lancé depuis le menu : la fenêtre existe déjà, et c'est le lanceur
+        # qui la fermera. Sinon (tests, lancement direct), on la crée.
+        self.owns_display = screen is None
+        if screen is None:
+            # On n'initialise que ce dont on a besoin : pas de module audio, qui
+            # échoue sur les machines sans carte son (serveurs, CI, VM).
+            pygame.display.init()
+            pygame.font.init()
+            screen = pygame.display.set_mode((window.width, window.height), pygame.RESIZABLE)
+            pygame.display.set_caption("PixelCity")
+        self.screen = screen
         self.fps = window.fps
         self.frame_clock = pygame.time.Clock()
 
@@ -68,14 +73,15 @@ class GameApp:
         self.accumulator = 0.0
         self.measured_tps = 0.0
         self.running = True
+        self.exit_to = "quit"  # « menu » quand on quitte la partie avec Échap
         self.hover_enabled = True  # désactivé pour les captures (souris fictive en 0,0)
         self._started = time.monotonic()
 
     # ------------------------------------------------------------------ #
     # Boucle principale
     # ------------------------------------------------------------------ #
-    def run(self, max_frames: int | None = None) -> None:
-        """Lance la boucle. `max_frames` sert aux tests (fenêtre factice)."""
+    def run(self, max_frames: int | None = None) -> str:
+        """Lance la boucle et renvoie « menu » ou « quit ». `max_frames` sert aux tests."""
         frames = 0
         try:
             while self.running and (max_frames is None or frames < max_frames):
@@ -83,7 +89,9 @@ class GameApp:
                 self.frame(real_dt)
                 frames += 1
         finally:
-            pygame.quit()
+            if self.owns_display:
+                pygame.quit()
+        return self.exit_to
 
     def frame(self, real_dt: float) -> None:
         """Une image : entrées, simulation, caméra, dessin."""
@@ -164,6 +172,7 @@ class GameApp:
                         self.ui.clear_selection()
                     else:
                         self.running = False
+                        self.exit_to = "menu"
                 case ActionKind.TOGGLE_PAUSE:
                     self.paused = not self.paused
                 case ActionKind.SET_SPEED:

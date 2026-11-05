@@ -24,7 +24,7 @@ Inspiré du papier *Generative Agents* (Stanford, 2023, la ville « Smallville �
 | 1 | MVP : carte, 3 habitants, A*, horloge, routine sans LLM | **fait** |
 | 2 | Ville visible : assets pixel-agents, intérieurs, besoins par gestes concrets, commerces (file, service, stock), interface translucide | **fait** |
 | 3 | Conversations par LLM local (Ollama) : en ville et au comptoir, affinités, flirt (entre adultes uniquement) | **fait** |
-| 4 | Studio : créer les habitants de chaque simulation (LLM, idéologie, façon de parler, apparence) | à venir |
+| 4 | Studio : créer les habitants de chaque simulation (LLM, idéologie, façon de parler, apparence) | **fait** |
 | 5 | Mémoire complète (flux, récupération, réflexion) | à venir |
 | 6 | Économie, plus de bâtiments, transports | à venir |
 | 7 | Module Test de produit et exports | à venir |
@@ -34,6 +34,25 @@ Inspiré du papier *Generative Agents* (Stanford, 2023, la ville « Smallville �
 ## Jouer (Windows, sans rien installer)
 
 Télécharge `PixelCity-Windows.zip` dans les [Releases](https://github.com/JonathanCybSec/pixelcity/releases), dézippe, double-clique sur `PixelCity.exe`.
+
+## Le studio : créer ses habitants
+
+Au lancement, un menu propose de jouer avec les habitants d'origine, de relancer un de **tes scénarios**, ou d'ouvrir le **studio**. Pour chaque habitant :
+
+- **identité** : nom, âge, apparence (6 personnages pixel-agents, aperçu animé), couleur ;
+- **vie** : métier (horaires, lever et coucher cohérents), intitulé libre (« Caissière »), logement ;
+- **caractère** : les cinq traits du Big Five, et ses valeurs ;
+- **voix** : façon de parler et idéologie (préréglages ou texte libre), modèle d'IA Ollama propre à l'habitant ;
+- **vie sentimentale** : ouvert(e) au flirt ou non (jamais avant 18 ans).
+
+« Au hasard » crée un habitant crédible en un clic. Les scénarios sont enregistrés dans `%APPDATA%\PixelCity\scenarios\` (Windows) ou `~/.local/share/pixelcity/scenarios/`, en YAML lisible. Un commerce sans aucun employé dans le scénario reste fermé (sauf la caisse automatique du supermarché). La ville actuelle compte 7 logements d'un lit : 7 habitants au plus pour l'instant.
+
+En partie, **Échap** (sans rien de sélectionné) ramène au menu.
+
+```bash
+python -m pixelcity --scenario "Ma ville"              # lancer directement un scénario
+python -m pixelcity --direct                           # sauter le menu
+```
 
 ## Brancher l'IA locale (Ollama)
 
@@ -101,7 +120,7 @@ Deux lancements avec la même graine produisent exactement la même simulation :
 | H | masquer l'interface |
 | L | lumière jour/nuit (activer / couper) |
 | F3 | couche de débogage : chemins A*, images/s, ticks/s |
-| Échap | fermer la fiche ; si rien n'est ouvert, quitter |
+| Échap | fermer la fiche ; si rien n'est ouvert, revenir au menu |
 
 À la vitesse x1, une minute simulée dure une seconde : on a le temps de lire les bulles et de voir chaque geste. Les touches sont lues par **position physique** (scancodes) : ZQSD sur un clavier AZERTY, WASD sur un QWERTY, sans rien configurer.
 

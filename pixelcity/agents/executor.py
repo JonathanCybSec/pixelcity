@@ -33,6 +33,7 @@ SERVE_LINGER_MINUTES = 2.0  # le vendeur reste un peu au comptoir après le dern
 STROLL_PAUSE = (2.0, 7.0)  # pause entre deux points de promenade (minutes)
 SPOT_CANDIDATES = 4  # au plus 4 calculs de chemin par recherche d'objet
 UNTIL_END_FALLBACK = 60  # durée d'une étape `until_end` sans fin de bloc
+MAX_SPOT_WAIT_MINUTES = 12  # toilettes occupées, plan de travail pris : on patiente un peu
 MAX_PHASES_PER_TICK = 8  # garde-fou : plusieurs phases peuvent s'enchaîner dans un tick
 
 _EAT_VERBS = frozenset({"eat", "drink"})
@@ -255,7 +256,15 @@ def _seek(agent: Agent, task: Task, ctx: SimContext) -> bool:
         return False
     reason = _start_step(agent, task, step, ctx)
     if reason is None:
+        task.seek_since = None
         return True
+    if reason.startswith("rien de libre") and not step.optional:
+        # Tout est pris (deux collègues, une seule toilette) : on attend son
+        # tour au lieu d'abandonner et de réessayer en boucle.
+        if task.seek_since is None:
+            task.seek_since = ctx.now_exact
+        if ctx.now_exact - task.seek_since < MAX_SPOT_WAIT_MINUTES:
+            return False
     if step.optional:
         task.step_index += 1
         task.remaining = None

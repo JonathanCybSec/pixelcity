@@ -15,6 +15,7 @@ Règles d'architecture :
 from __future__ import annotations
 
 from collections import deque
+from dataclasses import replace
 from pathlib import Path
 from typing import Protocol
 
@@ -82,6 +83,7 @@ class Simulation:
             model.id: self._create_agent(model) for model in config.agents.agents
         }
         self.desks = build_desks(self.world.furniture)
+        self.closed_for_lack_of_staff = self._close_unstaffed_shops()
         self.relations = Relations()
         script = ScriptedBackend(config.dialogues)
         # Par défaut : le script (instantané, reproductible). main.py branche
@@ -153,6 +155,23 @@ class Simulation:
     # ------------------------------------------------------------------ #
     # Création
     # ------------------------------------------------------------------ #
+    def _close_unstaffed_shops(self) -> list[str]:
+        """Un commerce sans aucun employé dans le scénario reste fermé.
+
+        Avec le studio, on peut créer une ville sans boulanger : la boulangerie
+        n'ouvre donc pas, et le planificateur ne promet plus à personne un
+        sandwich que nul ne servira. Une caisse automatique suffit à ouvrir.
+        """
+        employed = {m.work.place for m in self.config.agents.agents if m.work is not None}
+        closed: list[str] = []
+        for place_id, place in self.world.places.items():
+            desks = [desk for desk in self.desks.values() if desk.place_id == place_id]
+            if not desks or place_id in employed or any(d.self_service for d in desks):
+                continue
+            place.hours = replace(place.hours, days=frozenset())
+            closed.append(place_id)
+        return closed
+
     def _create_agent(self, model: AgentModel) -> Agent:
         """Chaque habitant commence la simulation chez lui, un lundi à minuit."""
         home = self.world.places[model.home]

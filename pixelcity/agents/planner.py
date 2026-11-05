@@ -139,6 +139,13 @@ class RuleBasedPlanner:
 
         shopping = self._fridge_is_low(agent, ctx)
         if shift:
+            # Frigo vide et service jusqu'au soir (serveur, 11 h - 19 h) : le
+            # supermarché sera fermé en sortant, on fait donc les courses le
+            # matin, s'il reste le temps avant de partir travailler.
+            if shopping:
+                shopping = self._free_time(
+                    builder, agent, shift[0] - 30, ctx, visited, max_blocks=0, shopping=True
+                )
             self._workday(builder, agent, shift, lunch, ctx)
         else:
             shopping = self._day_off(builder, agent, ctx, shopping, visited)
@@ -285,8 +292,11 @@ class RuleBasedPlanner:
         max_blocks: int = 2,
         *,
         shopping: bool = False,
-    ) -> None:
-        """Remplit un créneau libre : courses si le frigo est vide, puis 1 ou 2 loisirs."""
+    ) -> bool:
+        """Remplit un créneau libre : courses si le frigo est vide, puis 1 ou 2 loisirs.
+
+        Renvoie True s'il reste des courses à faire (pas eu le temps, ou fermé).
+        """
         home = agent.profile.home
         if shopping and until - builder.cursor >= SHOPPING_MINUTES + 30:
             start = builder.cursor
@@ -305,6 +315,7 @@ class RuleBasedPlanner:
                 builder.add(
                     builder.cursor + 20, ActivityType.RELAX, home, "range ses courses", "relax_home"
                 )
+                shopping = False
         added = 0
         while added < max_blocks and until - builder.cursor >= MIN_LEISURE_GAP:
             if added > 0:
@@ -331,6 +342,7 @@ class RuleBasedPlanner:
             label, recipe = LEISURE[place.kind]
             builder.add(start + duration, ActivityType.LEISURE, place.id, label, recipe)
             added += 1
+        return shopping
 
     # ------------------------------------------------------------------ #
     # Outils

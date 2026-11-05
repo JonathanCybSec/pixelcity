@@ -372,6 +372,7 @@ def persona(agent: Agent) -> Persona:
         traits=_traits(agent),
         values=profile.values,
         speech_style=profile.speech_style,
+        ideology=profile.ideology,
         doing=agent.status_text(),
         need=need,
         model=profile.llm_model,

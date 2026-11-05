@@ -69,6 +69,8 @@ def _persona_text(p: Persona) -> str:
     parts = [f"- {p.name} (id « {p.id} »), {p.age} ans, {p.job}. Caractère : {p.traits}."]
     if p.values:
         parts.append(f"  Tient à : {', '.join(p.values)}.")
+    if p.ideology:
+        parts.append(f"  Convictions : {p.ideology} (elles colorent ses propos, sans sermon).")
     if p.speech_style:
         parts.append(f"  Façon de parler : {p.speech_style}.")
     parts.append(f"  En ce moment : {p.doing}.")
