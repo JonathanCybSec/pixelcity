@@ -56,14 +56,68 @@ def app(monkeypatch: pytest.MonkeyPatch, make_sim: Callable[..., Simulation]) ->
 
 
 def test_le_rendu_tourne_sans_ecran(app: GameApp) -> None:
-    app.overlay.enabled = True
+    app.ui.state.debug = True
     for _ in range(5):
         app.frame(1 / 60)
-    app.speed_index = 3  # x10
+    app.speed_index = 2  # x10
     for _ in range(20):
         app.frame(0.1)
-    # 20 images de 0,1 s à x10, avec ~14,4 ticks/s à x1 : ~288 ticks.
-    assert 250 < app.sim.clock.tick < 330
+    # 20 images de 0,1 s à x10, avec 6 ticks/s à x1 (1 minute simulée par seconde) : 120 ticks.
+    assert 110 <= app.sim.clock.tick <= 130
+
+
+def test_toutes_les_postures_se_dessinent(app: GameApp) -> None:
+    """Assis, couché, caché, sur un tapis de course... aucune posture ne doit planter le rendu."""
+    from pixelcity.sim.types import Anim, Pose
+
+    sim = app.sim
+    for index, agent in enumerate(sim.agents.values()):
+        agent.pose = list(Pose)[index % len(Pose)]
+        agent.anim = list(Anim)[index % len(Anim)]
+    bed = next(s for s in sim.world.places["maison_dupont"].spots_for("sleep"))
+    marcel = sim.agents["marcel"]
+    marcel.pose, marcel.spot = Pose.LIE, bed
+    for _ in range(3):
+        app.frame(1 / 60)
+
+
+def test_clic_sur_un_habitant_le_selectionne(app: GameApp) -> None:
+    sim = app.sim
+    lea = sim.agents["lea"]
+    app.camera.zoom = 3
+    x, y = app.renderer.agent_world_pos(lea, 0.0)
+    app.camera.center_x, app.camera.center_y = x, y
+    app.camera.clamp()
+    app.frame(1 / 60)
+    sx, sy = app.camera.world_to_screen(x, y - 10)
+    app._click((sx, sy))
+    assert app.ui.state.selected_agent == "lea" and app.ui.state.follow
+    app.frame(1 / 60)  # la fiche s'affiche
+    app._click((1, app.screen.get_height() // 2))  # clic dans le vide (hors interface)
+    assert app.ui.state.selected_agent is None
+
+
+def test_les_bulles_suivent_le_temps_reel(app: GameApp) -> None:
+    """Une réplique reste lisible ~3 s à l'écran, même à x30."""
+    from pixelcity.sim.service import say
+
+    say(app.sim.ctx, "lea", "Bonjour !")
+    bubbles = app.ui.feed.live_bubbles()
+    assert "lea" in bubbles
+    app.speed_index = 3  # x30 : des milliers de ticks défilent
+    for _ in range(10):
+        app.frame(0.1)
+    assert "lea" in app.ui.feed.live_bubbles()  # une seconde réelle plus tard, toujours là
+
+
+def test_teinte_de_la_nuit() -> None:
+    from pixelcity.engine.lighting import darkness, tint_at
+
+    assert tint_at(12 * 60) == (255, 255, 255)
+    night = tint_at(2 * 60)
+    assert darkness(night) > 0.3
+    dusk = tint_at(19 * 60 + 30)
+    assert dusk[0] > dusk[2]  # le crépuscule tire vers l'orangé
 
 
 def test_la_pause_fige_la_simulation(app: GameApp) -> None:

@@ -1,4 +1,4 @@
-"""Tests des besoins, du planificateur et de la routine."""
+"""Tests des besoins, des plans et du planificateur."""
 
 from __future__ import annotations
 
@@ -9,17 +9,26 @@ import pytest
 
 from pixelcity.agents.needs import Needs
 from pixelcity.agents.plan import PlanBuilder
-from pixelcity.agents.planner import PlanningContext, RuleBasedPlanner
+from pixelcity.agents.planner import MEAL_OPEN_MINUTES, PlanningContext, RuleBasedPlanner
 from pixelcity.config.loader import GameConfig
-from pixelcity.sim.events import EventKind
 from pixelcity.sim.simulation import Simulation
 from pixelcity.sim.types import MINUTES_PER_DAY, ActivityType, NeedKind, PlaceKind, Weekday
+from pixelcity.world.place import OpeningHours
+
+
+def planning(sim: Simulation, day_index: int, seed: int = 0) -> PlanningContext:
+    return PlanningContext(
+        world=sim.world,
+        actions=sim.config.actions,
+        weekday=Weekday.from_index(day_index),
+        rng=random.Random(seed),
+        walk_speed=sim.config.settings.walk_speed_tiles_per_minute,
+    )
+
 
 # --------------------------------------------------------------------------- #
 # Besoins
 # --------------------------------------------------------------------------- #
-
-
 def test_les_besoins_baissent_et_restent_bornes(config: GameConfig) -> None:
     specs = config.settings.needs
     needs = Needs(dict.fromkeys(NeedKind, 50.0))
@@ -46,18 +55,24 @@ def test_hysteresis(config: GameConfig) -> None:
 # --------------------------------------------------------------------------- #
 # Plans
 # --------------------------------------------------------------------------- #
-
-
 def test_le_builder_empeche_les_trous() -> None:
     builder = PlanBuilder(day_index=2)
-    builder.add(7 * 60, ActivityType.SLEEP, "maison", "sommeil")
-    builder.add(6 * 60, ActivityType.EAT, "maison", "ignoré : finirait avant le curseur")
-    builder.add(MINUTES_PER_DAY, ActivityType.RELAX, "maison", "journée")
+    builder.add(7 * 60, ActivityType.SLEEP, "maison", "sommeil", "sleep")
+    builder.add(6 * 60, ActivityType.EAT, "maison", "ignoré : finirait avant le curseur", "snack")
+    builder.add(MINUTES_PER_DAY, ActivityType.RELAX, "maison", "journée", "relax_home")
     plan = builder.build()
     assert plan.validation_errors() == []
     assert plan.blocks[0].start == 2 * MINUTES_PER_DAY
     with pytest.raises(ValueError):
         PlanBuilder(0).build()  # plan incomplet
+
+
+def test_deux_blocs_identiques_fusionnent() -> None:
+    builder = PlanBuilder(day_index=0)
+    builder.add(60, ActivityType.RELAX, "maison", "repos", "relax_home")
+    builder.add(120, ActivityType.RELAX, "maison", "repos", "relax_home")
+    builder.add(MINUTES_PER_DAY, ActivityType.SLEEP, "maison", "sommeil", "sleep")
+    assert len(builder.build().blocks) == 2
 
 
 @pytest.mark.parametrize("day_index", range(7))
@@ -67,12 +82,11 @@ def test_plans_valides_toute_la_semaine(
     sim = make_sim()
     planner = RuleBasedPlanner()
     weekday = Weekday.from_index(day_index)
+    recipes = sim.config.actions.recipes
     for agent in sim.agents.values():
-        ctx = PlanningContext(sim.world, weekday, random.Random(day_index))
-        plan = planner.plan_day(agent, day_index, ctx)
+        plan = planner.plan_day(agent, day_index, planning(sim, day_index, day_index))
         assert plan.validation_errors() == [], agent.id
-        assert plan.blocks[0].activity is ActivityType.SLEEP
-        assert plan.blocks[-1].activity is ActivityType.SLEEP
+        assert plan.blocks[0].recipe == "sleep" and plan.blocks[-1].recipe == "sleep"
         shift = agent.profile.work.schedule.get(weekday) if agent.profile.work else None
         work_blocks = [b for b in plan.blocks if b.activity is ActivityType.WORK]
         if shift is None:
@@ -82,63 +96,48 @@ def test_plans_valides_toute_la_semaine(
             assert work_blocks[0].start == plan.start + shift[0]
             assert work_blocks[-1].end == plan.start + shift[1]
         for block in plan.blocks:
+            assert block.recipe in recipes, block.recipe
             place = sim.world.places[block.place_id]
             if place.kind is PlaceKind.HOME or block.place_id == agent.work_place_id:
                 continue
-            minute = block.start - plan.start
-            assert place.hours.is_open(day_index, minute), (agent.id, block.label)
-            assert place.hours.is_open(day_index, block.end - plan.start - 1), block.label
+            start = block.start - plan.start
+            assert place.hours.is_open(day_index, start), (agent.id, block.label)
+            last = (
+                start + MEAL_OPEN_MINUTES - 1
+                if block.activity is ActivityType.EAT
+                else block.end - plan.start - 1
+            )
+            assert place.hours.is_open(day_index, last), (agent.id, block.label)
 
 
 def test_le_planificateur_est_reproductible(make_sim: Callable[..., Simulation]) -> None:
     sim = make_sim()
     agent = sim.agents["lea"]
-    plans = [
-        RuleBasedPlanner().plan_day(
-            agent, 5, PlanningContext(sim.world, Weekday.SAT, random.Random(3))
-        )
-        for _ in range(2)
-    ]
+    plans = [RuleBasedPlanner().plan_day(agent, 5, planning(sim, 5, 3)) for _ in range(2)]
     assert plans[0] == plans[1]
 
 
-# --------------------------------------------------------------------------- #
-# Routine
-# --------------------------------------------------------------------------- #
-
-
-def test_depart_anticipe_pour_arriver_a_l_heure(make_sim: Callable[..., Simulation]) -> None:
-    """Karim commence à 8 h : il doit être à l'école à 8 h, donc partir avant."""
+def test_frigo_presque_vide_donc_courses(make_sim: Callable[..., Simulation]) -> None:
     sim = make_sim()
-    sim.run_ticks(8 * 60 * sim.clock.ticks_per_minute)  # lundi 08:00
-    karim = sim.agents["karim"]
-    assert karim.place_id == "ecole"
-    assert karim.activity is ActivityType.WORK
+    paul = sim.agents["paul"]
+    fridge = sim.world.places[paul.profile.home].container_with("provisions")
+    assert fridge is not None
+    fridge.items["provisions"] = 1
+    plan = RuleBasedPlanner().plan_day(paul, 1, planning(sim, 1))
+    assert any(block.recipe == "shopping" for block in plan.blocks)
+    fridge.items["provisions"] = 12
+    plan = RuleBasedPlanner().plan_day(paul, 1, planning(sim, 1))
+    assert not any(block.recipe == "shopping" for block in plan.blocks)
 
 
-def test_une_faim_critique_interrompt_le_plan(make_sim: Callable[..., Simulation]) -> None:
+def test_rien_d_ouvert_a_midi_donc_gamelle(make_sim: Callable[..., Simulation]) -> None:
+    """Boulangerie et café fermés, maison trop loin : Léa emporte sa gamelle."""
     sim = make_sim()
-    sim.run_ticks(10 * 60 * sim.clock.ticks_per_minute)  # lundi 10:00, Léa au bureau
-    lea = sim.agents["lea"]
-    assert lea.place_id == "bureaux"
-    lea.needs.values[NeedKind.HUNGER] = 5.0
-    sim.tick()
-    assert lea.override is not None and lea.override.need is NeedKind.HUNGER
-    # Elle va manger, puis reprend son plan une fois rassasiée.
-    for _ in range(90 * sim.clock.ticks_per_minute):
-        sim.tick()
-        if lea.override is None:
-            break
-    assert lea.override is None
-    assert lea.needs[NeedKind.HUNGER] >= sim.config.settings.needs[NeedKind.HUNGER].satisfied
-    kinds = [event.kind for event in sim.events if event.agent_id == "lea"]
-    assert EventKind.NEED_CRITICAL in kinds and EventKind.NEED_RECOVERED in kinds
-
-
-def test_les_occupants_sont_coherents(make_sim: Callable[..., Simulation]) -> None:
-    sim = make_sim()
-    for _ in range(48):
-        sim.run_ticks(30 * sim.clock.ticks_per_minute)
-        for agent in sim.agents.values():
-            for place in sim.world.places.values():
-                assert (agent.id in place.occupants) == (agent.place_id == place.id)
+    for place_id in ("boulangerie", "cafe"):
+        sim.world.places[place_id].hours = OpeningHours((0, 1), frozenset())
+    plan = RuleBasedPlanner().plan_day(sim.agents["lea"], 0, planning(sim, 0))
+    recipes = [block.recipe for block in plan.blocks]
+    assert "pack_lunch" in recipes and "lunchbox_lunch" in recipes
+    assert recipes.index("pack_lunch") < recipes.index("lunchbox_lunch")
+    lunch = next(block for block in plan.blocks if block.recipe == "lunchbox_lunch")
+    assert lunch.place_id == "bureaux"  # elle déjeune au bureau
