@@ -1,0 +1,215 @@
+# Recettes d'actions : comment un habitant accomplit concrètement une activité.
+#
+# Une recette est une suite d'étapes. Chaque étape utilise un VERBE : le moteur
+# cherche, dans le lieu courant, l'objet libre le plus proche qui le propose
+# (voir objects.yaml), y réserve une place, y va, puis l'utilise.
+#
+#   minutes / until_end  durée fixe, ou jusqu'à la fin du bloc du plan
+#   effects              effet sur les besoins, en points PAR HEURE
+#   take / put           stock de l'objet <-> inventaire de l'habitant
+#   consume / produce    l'article disparaît / apparaît dans le stock du commerce
+#   make                 l'article apparaît dans l'inventaire (la gamelle préparée)
+#   order + buy          faire la queue au comptoir et être servi par le vendeur
+#   optional             si l'étape est impossible, on passe à la suivante
+#   distinct             un autre objet qu'à l'étape précédente (deux rayons)
+#   switch_on            allume l'objet pendant l'étape (cuisinière, four)
+#
+# Verbes spéciaux sans objet : order (service), stroll (flâner), wait (attendre).
+
+items:
+  provisions: {label: provisions}
+  groceries: {label: sac de courses, stores_as: {provisions: 10}}
+  bread: {label: sandwich}
+  coffee: {label: café}
+  meal: {label: plat du jour}
+  lunchbox: {label: gamelle}
+
+recipes:
+  # --- Nuit et hygiène ---------------------------------------------------------
+  sleep:
+    label: dormir
+    steps:
+      - {verb: sleep, until_end: true, label: dort, effects: {energy: 16, hunger: 3, hygiene: 1.5, bladder: 11, fun: 3}}
+  nap:
+    label: sieste
+    steps:
+      - {verb: sleep, until_end: true, label: fait la sieste, effects: {energy: 14, bladder: 9, fun: 3}}
+  toilet:
+    label: toilettes
+    steps:
+      - {verb: use_toilet, minutes: 3, label: va aux toilettes, effects: {bladder: 2000}}
+      - {verb: wash_hands, minutes: 1, label: se lave les mains, optional: true}
+  morning:
+    label: toilette du matin
+    steps:
+      - {verb: use_toilet, minutes: 3, label: passe aux toilettes, effects: {bladder: 2000}, optional: true}
+      - {verb: shower, minutes: 10, label: prend sa douche, switch_on: true, effects: {hygiene: 480, fun: 4}}
+      - {verb: get_dressed, minutes: 3, label: s'habille, optional: true}
+  shower:
+    label: douche
+    steps:
+      - {verb: shower, minutes: 10, label: prend sa douche, switch_on: true, effects: {hygiene: 480, fun: 4}}
+      - {verb: get_dressed, minutes: 3, label: se rhabille, optional: true}
+
+  # --- Repas à la maison -----------------------------------------------------------
+  breakfast:
+    label: petit-déjeuner
+    steps:
+      - {verb: take_food, minutes: 1, label: sort de quoi manger du frigo, take: {provisions: 1}}
+      - {verb: make_coffee, minutes: 3, label: se prépare un café, optional: true}
+      - {verb: eat, minutes: 15, label: prend son petit-déjeuner, consume: {provisions: 1}, effects: {hunger: 220, fun: 4}, anim: eat}
+      - {verb: wash_dishes, minutes: 3, label: rince sa tasse, optional: true}
+  home_meal:
+    label: repas à la maison
+    steps:
+      - {verb: take_food, minutes: 2, label: sort des ingrédients du frigo, take: {provisions: 1}}
+      - {verb: prepare_food, minutes: 6, label: épluche les légumes, optional: true}
+      - {verb: cook, minutes: 18, label: cuisine, switch_on: true}
+      - {verb: eat, minutes: 20, label: mange, consume: {provisions: 1}, effects: {hunger: 200, fun: 6}, anim: eat}
+      - {verb: wash_dishes, minutes: 5, label: fait la vaisselle, optional: true}
+  snack:
+    label: grignoter
+    steps:
+      - {verb: take_food, minutes: 1, label: attrape quelque chose dans le frigo, take: {provisions: 1}}
+      - {verb: eat, minutes: 10, label: grignote, consume: {provisions: 1}, effects: {hunger: 300}, anim: eat}
+  pack_lunch:
+    label: prépare sa gamelle
+    steps:
+      - {verb: take_food, minutes: 1, label: sort des restes du frigo, take: {provisions: 1}}
+      - {verb: prepare_food, minutes: 4, label: prépare sa gamelle, consume: {provisions: 1}, make: {lunchbox: 1}, anim: interact}
+  store_groceries:
+    label: ranger les courses
+    steps:
+      - {verb: store_food, minutes: 4, label: range les courses dans le frigo, put: {groceries: 1}}
+
+  # --- Détente -------------------------------------------------------------------------
+  relax_home:
+    label: détente
+    steps:
+      - {verb: watch_tv, until_end: true, label: regarde la télé, switch_on: true, effects: {fun: 14, energy: 1}, optional: true}
+      - {verb: relax, until_end: true, label: se repose, effects: {fun: 8, energy: 2}}
+  park_walk:
+    label: promenade
+    steps:
+      - {verb: stroll, minutes: 30, label: se promène, effects: {fun: 22, energy: -1}}
+      - {verb: relax, minutes: 20, label: se pose sur un banc, effects: {fun: 16, energy: 3}, optional: true}
+      - {verb: stroll, until_end: true, label: se promène, effects: {fun: 20}}
+  gym_session:
+    label: séance de sport
+    steps:
+      - {verb: exercise, minutes: 30, label: s'entraîne, effects: {fun: 24, energy: -8, hygiene: -12}}
+      - {verb: exercise, minutes: 25, label: change d'appareil, distinct: true, effects: {fun: 20, energy: -6, hygiene: -10}}
+      - {verb: shower, minutes: 10, label: se douche au vestiaire, switch_on: true, optional: true, effects: {hygiene: 480, fun: 4}}
+  linger:
+    label: s'attarde
+    steps:
+      - {verb: sit, until_end: true, label: s'attarde, effects: {fun: 6}}
+  wait_here:
+    label: attend
+    steps:
+      - {verb: wait, until_end: true, label: attend}
+
+  # --- Commerces, côté client ---------------------------------------------------------
+  shopping:
+    label: courses
+    steps:
+      - {verb: pick_goods, minutes: 5, label: remplit son panier}
+      - {verb: pick_goods, minutes: 4, label: choisit des produits frais, distinct: true, optional: true}
+      - {verb: order, buy: groceries, label: passe en caisse}
+  bakery_lunch:
+    label: déjeuner à la boulangerie
+    steps:
+      - {verb: order, buy: bread, label: commande un sandwich}
+      - {verb: eat, minutes: 15, label: mange son sandwich, consume: {bread: 1}, effects: {hunger: 240, fun: 6}, anim: eat}
+  cafe_coffee:
+    label: pause café
+    steps:
+      - {verb: order, buy: coffee, label: commande un café}
+      - {verb: drink, minutes: 25, label: boit son café, consume: {coffee: 1}, effects: {fun: 30, energy: 6}, anim: eat}
+  cafe_lunch:
+    label: déjeuner au café
+    steps:
+      - {verb: order, buy: meal, label: commande le plat du jour}
+      - {verb: eat, minutes: 25, label: déjeune, consume: {meal: 1}, effects: {hunger: 200, fun: 12}, anim: eat}
+  cantine_lunch:
+    label: déjeuner à la cantine
+    steps:
+      - {verb: eat, minutes: 30, label: déjeune à la cantine, effects: {hunger: 180, fun: 4}, anim: eat}
+  lunchbox_lunch:
+    label: déjeuner sur le pouce
+    steps:
+      - {verb: eat, minutes: 20, label: mange sa gamelle, consume: {lunchbox: 1}, effects: {hunger: 210, fun: 3}, anim: eat}
+  eat_bread:
+    label: mange son sandwich
+    steps:
+      - {verb: eat, minutes: 15, label: mange son sandwich, consume: {bread: 1}, effects: {hunger: 240, fun: 4}, anim: eat}
+  eat_meal:
+    label: mange son plat
+    steps:
+      - {verb: eat, minutes: 20, label: mange son plat à emporter, consume: {meal: 1}, effects: {hunger: 200, fun: 6}, anim: eat}
+  staff_lunch:
+    label: pause déjeuner
+    steps:
+      - {verb: eat, minutes: 25, label: déjeune pendant sa pause, effects: {hunger: 220, fun: 4}, anim: eat}
+
+  # --- Côté vendeur : tenir le comptoir tant qu'il y a des clients ----------------
+  # Le moteur pousse cette tâche par-dessus le métier dès qu'un client attend
+  # et que personne n'est au comptoir. L'étape se prolonge tant que la file
+  # n'est pas vide, puis le vendeur retourne à son pétrin.
+  serve_customers:
+    label: service au comptoir
+    steps:
+      - {verb: serve, minutes: 2, label: passe derrière le comptoir}
+
+  # --- Métiers (en boucle jusqu'à la fin du service) -----------------------------
+  job_bakery:
+    label: travail à la boulangerie
+    loop: true
+    serve: true
+    steps:
+      - {verb: knead, minutes: 20, label: pétrit la pâte, anim: interact, effects: {energy: -1}}
+      - {verb: bake, minutes: 25, label: enfourne le pain, switch_on: true, produce: {bread: 12}, anim: interact}
+      - {verb: tidy, minutes: 10, label: arrange la vitrine, anim: interact}
+  job_cafe:
+    label: service au café
+    loop: true
+    serve: true
+    steps:
+      - {verb: make_coffee, minutes: 15, label: prépare les cafés, anim: interact}
+      - {verb: tidy, minutes: 10, label: essuie le comptoir, anim: interact}
+  job_supermarket:
+    label: caisse du supermarché
+    loop: true
+    serve: true
+    steps:
+      - {verb: man_checkout, minutes: 50, label: tient la caisse}
+      - {verb: restock, minutes: 10, label: remplit les rayons, anim: interact}
+  job_office:
+    label: travail de bureau
+    loop: true
+    steps:
+      - {verb: work_computer, minutes: 80, label: travaille sur son ordinateur, switch_on: true, anim: interact, effects: {energy: -1}}
+      - {verb: make_coffee, minutes: 5, label: se sert un café, optional: true, effects: {energy: 6}}
+  job_school:
+    label: classe
+    loop: true
+    steps:
+      - {verb: teach, minutes: 45, label: fait cours, anim: talk, effects: {energy: -2}}
+      - {verb: work_desk, minutes: 15, label: corrige des copies, anim: read}
+
+# Recette de travail selon le type du lieu de travail.
+jobs:
+  bakery: job_bakery
+  cafe: job_cafe
+  supermarket: job_supermarket
+  office: job_office
+  school: job_school
+
+# Quand la recette d'un bloc est finie avant la fin du bloc (ou impossible).
+fillers:
+  home: relax_home
+  park: park_walk
+  gym: gym_session
+  cafe: linger
+  bakery: linger
+  default: wait_here

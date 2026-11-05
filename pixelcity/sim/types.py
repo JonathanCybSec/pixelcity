@@ -24,6 +24,7 @@ class NeedKind(StrEnum):
     HUNGER = "hunger"
     ENERGY = "energy"
     HYGIENE = "hygiene"
+    BLADDER = "bladder"
     FUN = "fun"
 
     @property
@@ -35,8 +36,57 @@ _NEED_LABELS: dict[NeedKind, str] = {
     NeedKind.HUNGER: "Faim",
     NeedKind.ENERGY: "Énergie",
     NeedKind.HYGIENE: "Hygiène",
+    NeedKind.BLADDER: "Vessie",
     NeedKind.FUN: "Loisir",
 }
+
+
+class Facing(StrEnum):
+    """Direction du regard d'un personnage (les sprites ont 4 orientations)."""
+
+    UP = "up"
+    DOWN = "down"
+    LEFT = "left"
+    RIGHT = "right"
+
+    @property
+    def delta(self) -> tuple[int, int]:
+        return _FACING_DELTAS[self]
+
+    @classmethod
+    def from_delta(cls, dx: int, dy: int) -> Facing:
+        if abs(dx) >= abs(dy) and dx != 0:
+            return cls.RIGHT if dx > 0 else cls.LEFT
+        return cls.DOWN if dy >= 0 else cls.UP
+
+
+_FACING_DELTAS: dict[Facing, tuple[int, int]] = {
+    Facing.UP: (0, -1),
+    Facing.DOWN: (0, 1),
+    Facing.LEFT: (-1, 0),
+    Facing.RIGHT: (1, 0),
+}
+
+
+class Pose(StrEnum):
+    """Posture du personnage : c'est ce qui choisit le sprite à l'écran."""
+
+    STAND = "stand"
+    WALK = "walk"
+    SIT = "sit"
+    LIE = "lie"  # couché dans un lit : le rendu dessine la tête sur l'oreiller
+    RUN = "run"  # sur un tapis de course : animation de marche sur place
+    HIDDEN = "hidden"  # douche, toilettes : on ne montre pas le personnage
+
+
+class Anim(StrEnum):
+    """Ce que fait le personnage dans sa posture."""
+
+    IDLE = "idle"
+    INTERACT = "interact"  # manipule un objet (cuisine, pétrit, range...)
+    READ = "read"
+    EAT = "eat"
+    TALK = "talk"
 
 
 class ActivityType(StrEnum):
@@ -45,6 +95,7 @@ class ActivityType(StrEnum):
     SLEEP = "sleep"
     EAT = "eat"
     HYGIENE = "hygiene"
+    TOILET = "toilet"
     WORK = "work"
     LEISURE = "leisure"
     SHOP = "shop"
@@ -59,6 +110,7 @@ _ACTIVITY_LABELS: dict[ActivityType, str] = {
     ActivityType.SLEEP: "dormir",
     ActivityType.EAT: "manger",
     ActivityType.HYGIENE: "se laver",
+    ActivityType.TOILET: "aller aux toilettes",
     ActivityType.WORK: "travailler",
     ActivityType.LEISURE: "se divertir",
     ActivityType.SHOP: "faire les courses",

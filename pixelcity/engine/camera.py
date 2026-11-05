@@ -12,9 +12,11 @@ passe par `offset()`, arrondi UNE seule fois par image.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
-MIN_ZOOM, MAX_ZOOM = 1, 4
+MIN_ZOOM, MAX_ZOOM = 1, 6
+FOLLOW_STIFFNESS = 6.0  # plus c'est grand, plus la caméra colle à sa cible
 
 
 @dataclass(slots=True)
@@ -52,6 +54,17 @@ class Camera:
         self.zoom = new_zoom
         self.center_x = world_x - (screen_x - self.view_width / 2) / new_zoom
         self.center_y = world_y - (screen_y - self.view_height / 2) / new_zoom
+        self.clamp()
+
+    def follow(self, world_x: float, world_y: float, dt: float) -> None:
+        """Glisse vers une cible (amortissement exponentiel : rapide puis doux).
+
+        `1 - exp(-k·dt)` plutôt que `k·dt` : le résultat ne dépend pas du
+        nombre d'images par seconde, et ne dépasse jamais la cible.
+        """
+        t = 1.0 - math.exp(-FOLLOW_STIFFNESS * dt)
+        self.center_x += (world_x - self.center_x) * t
+        self.center_y += (world_y - self.center_y) * t
         self.clamp()
 
     def clamp(self) -> None:

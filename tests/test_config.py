@@ -12,9 +12,12 @@ from pixelcity.sim.types import NeedKind
 
 
 def test_la_config_par_defaut_est_valide(config: GameConfig) -> None:
-    assert len(config.agents.agents) == 3
-    assert len(config.city.places) == 10
+    assert len(config.agents.agents) == 6
+    assert len(config.city.places) == 14
     assert set(config.settings.needs) == set(NeedKind)
+    # Chaque type de lieu de travail a sa recette de métier.
+    workplaces = {config.place(a.work.place).kind for a in config.agents.agents if a.work}
+    assert workplaces <= set(config.actions.jobs)
 
 
 @pytest.fixture
@@ -32,7 +35,7 @@ def _replace(path: Path, old: str, new: str) -> None:
 
 
 def test_reference_vers_un_lieu_inconnu(config_copy: Path) -> None:
-    _replace(config_copy / "agents.yaml", "home: immeuble_tilleuls", "home: maison_4")
+    _replace(config_copy / "agents.yaml", "home: appart_1", "home: maison_4")
     with pytest.raises(ConfigError) as error:
         load_config(config_copy)
     message = str(error.value)
@@ -73,3 +76,30 @@ def test_seuils_de_besoin_incoherents(config_copy: Path) -> None:
 def test_fichier_manquant(tmp_path: Path) -> None:
     with pytest.raises(ConfigError, match="introuvable"):
         load_config(tmp_path)
+
+
+def test_verbe_qu_aucun_objet_ne_propose(config_copy: Path) -> None:
+    """Une faute de frappe dans une recette doit casser au démarrage, pas à 14 h 37."""
+    _replace(config_copy / "actions.yaml", "verb: cook,", "verb: cuisiner,")
+    with pytest.raises(ConfigError) as error:
+        load_config(config_copy)
+    assert "cuisiner" in str(error.value)
+
+
+def test_article_inconnu(config_copy: Path) -> None:
+    _replace(config_copy / "objects.yaml", "sells: [bread]", "sells: [croissant]")
+    with pytest.raises(ConfigError) as error:
+        load_config(config_copy)
+    assert "croissant" in str(error.value)
+
+
+def test_une_commande_doit_dire_quoi_acheter(config_copy: Path) -> None:
+    _replace(config_copy / "actions.yaml", "{verb: order, buy: coffee, ", "{verb: order, ")
+    with pytest.raises(ConfigError):
+        load_config(config_copy)
+
+
+def test_etape_sans_duree(config_copy: Path) -> None:
+    _replace(config_copy / "actions.yaml", "{verb: cook, minutes: 18, ", "{verb: cook, ")
+    with pytest.raises(ConfigError):
+        load_config(config_copy)

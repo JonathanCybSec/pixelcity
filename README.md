@@ -1,23 +1,34 @@
 # PixelCity
 
-Bac à sable de simulation de vie en pixel art : des habitants pilotés par des IA vivent, travaillent et interagissent dans une ville vue de dessus. À terme, on pourra y injecter un produit fictif et mesurer comment les habitants le découvrent, en parlent, l'achètent et le jugent.
+Bac à sable de simulation de vie en pixel art : des habitants pilotés par des IA vivent, travaillent et interagissent dans une ville vue de dessus, dont on voit l'intérieur de chaque maison et de chaque commerce. À terme, on pourra y injecter un produit fictif et mesurer comment les habitants le découvrent, en parlent, l'achètent et le jugent.
 
-Inspiré du papier *Generative Agents* (Stanford, 2023, la ville « Smallville ») et du projet open source *AI Town* : on reprend leur architecture, pas leur code.
+Inspiré du papier *Generative Agents* (Stanford, 2023, la ville « Smallville ») et du projet open source *AI Town* : on reprend leur architecture, pas leur code. La direction artistique est celle de [pixel-agents](https://github.com/pixel-agents-hq/pixel-agents), dont on réutilise les assets (licence MIT).
 
 ![Vue d'ensemble de la ville](docs/vue-ensemble.png)
+
+## Ce que l'on voit
+
+- **Une ville de 96 × 64 tuiles** : quatre maisons, une résidence de trois appartements, une boulangerie, un café, un supermarché, des bureaux, une école, une salle de sport et un parc. Pas de toits : on voit tout ce qui se passe à l'intérieur.
+- **Des besoins comblés par des gestes visibles** : pour dîner, un habitant sort des ingrédients du frigo (s'il en reste), épluche les légumes, allume la cuisinière, s'assoit à table, puis fait la vaisselle. Douche le matin, toilettes, courses rangées dans le frigo en rentrant, gamelle préparée quand il n'y a rien d'ouvert à midi...
+- **Des commerces qui vivent** : on fait la queue, le boulanger lâche son pétrin pour servir, client et vendeur échangent quelques répliques (bulles), la vitrine peut se vider. Sans caissière, la caisse du supermarché passe en libre-service.
+- **Des relations** : chaque échange rapproche (ou non) deux habitants, selon leurs caractères.
+- **Le jour et la nuit** : crépuscule orangé, nuit bleutée, fenêtres éclairées là où quelqu'un est réveillé, lampadaires.
+
+![Au comptoir de la boulangerie](docs/boulangerie.png)
 
 ## État du projet
 
 | Étape | Contenu | État |
 |---|---|---|
-| 1 | MVP : carte de 10 lieux, 3 habitants, A*, horloge, routine sans LLM | **fait** |
-| 2 | Ollama : planification de journée et conversations | à venir |
-| 3 | Mémoire complète (flux, récupération, réflexion) | à venir |
-| 4 | Ville complète, économie, transports | à venir |
-| 5 | Interface d'observation complète | à venir |
-| 6 | Module Test de produit et exports | à venir |
-| 7 | Sauvegarde, optimisation, 50 à 100 habitants | à venir |
-| 8 | Exécutable Windows (.exe) avec PyInstaller | à venir |
+| 1 | MVP : carte, 3 habitants, A*, horloge, routine sans LLM | **fait** |
+| 2 | Ville visible : assets pixel-agents, intérieurs, besoins par gestes concrets, commerces (file, service, stock), interface translucide | **fait** |
+| 3 | Conversations par LLM local (Ollama) : en ville et au comptoir, affinités, flirt (entre adultes uniquement) | à venir |
+| 4 | Studio : créer les habitants de chaque simulation (LLM, idéologie, façon de parler, apparence) | à venir |
+| 5 | Mémoire complète (flux, récupération, réflexion) | à venir |
+| 6 | Économie, plus de bâtiments, transports | à venir |
+| 7 | Module Test de produit et exports | à venir |
+| 8 | Sauvegarde, optimisation, 50 à 100 habitants | à venir |
+| 9 | Exécutable Windows (.exe) avec PyInstaller | à venir |
 
 ## Installation
 
@@ -62,51 +73,70 @@ Deux lancements avec la même graine produisent exactement la même simulation :
 
 ### Contrôles
 
-| Touche | Action |
+| Touche / souris | Action |
 |---|---|
+| Clic sur un habitant (ou sur son nom dans la liste) | le sélectionner : sa fiche s'ouvre et la caméra le suit |
+| Clic sur un bâtiment | fiche du lieu : ouvert ou fermé, présents, stocks, comptoir |
+| Glisser (clic gauche, droit ou molette) | déplacer la caméra |
+| Molette, Page haut / Page bas | zoom (x1 à x6) |
+| Z Q S D ou flèches | déplacer la caméra au clavier |
 | Espace | pause / reprise |
-| 1, 2, 3, 4 (rangée du haut ou pavé numérique) | vitesse x1, x2, x5, x10 |
-| Z Q S D ou flèches | déplacer la caméra |
-| Molette, Page haut / Page bas, + / − du pavé numérique | zoom (x1 à x4) |
-| F3 | overlay de débogage : activité, chemin A* et besoins de chaque habitant |
-| Échap | quitter |
+| 1, 2, 3, 4 (rangée du haut ou pavé numérique) | vitesse x1, x3, x10, x30 |
+| F | suivre ou non l'habitant sélectionné |
+| Tab | habitant suivant |
+| H | masquer l'interface |
+| L | lumière jour/nuit (activer / couper) |
+| F3 | couche de débogage : chemins A*, images/s, ticks/s |
+| Échap | fermer la fiche ; si rien n'est ouvert, quitter |
 
-Les touches de déplacement sont lues par **position physique** (scancodes) : ZQSD sur un clavier AZERTY, WASD sur un QWERTY, sans rien configurer.
+À la vitesse x1, une minute simulée dure une seconde : on a le temps de lire les bulles et de voir chaque geste. Les touches sont lues par **position physique** (scancodes) : ZQSD sur un clavier AZERTY, WASD sur un QWERTY, sans rien configurer.
 
-![Overlay de débogage (F3)](docs/debug-f3.png)
+![La nuit tombe sur la résidence des Tilleuls](docs/nuit.png)
 
 ## Tests et qualité
 
 ```bash
-pytest          # une soixantaine de tests, quelques secondes
+pytest          # une centaine de tests, ~1 min
 mypy            # typage strict
 ruff check .    # lint
 ruff format .   # formatage
 ```
 
-Les tests couvrent notamment : l'optimalité d'A* (comparé à Dijkstra sur des grilles aléatoires), les horaires qui passent minuit, le déterminisme (même graine, même empreinte), les invariants d'une semaine complète (chacun dort chez soi à 3 h, est au travail pendant son service...) et la frontière d'architecture (le noyau tourne sans jamais importer pygame). Le rendu lui-même est testé avec une fenêtre factice.
+Les tests couvrent notamment : le petit-déjeuner qui passe vraiment par le frigo, la cuisinière allumée pendant la cuisson, une envie pressante qui interrompt le travail puis le laisse reprendre, le service au comptoir (stock, rupture, caisse automatique), le planificateur (courses quand le frigo est vide, gamelle quand rien n'est ouvert), les invariants d'une semaine complète (personne ne se perd, aucune réservation fantôme, aucun objet allumé pour rien, des frigos jamais vides), le déterminisme (même graine, même empreinte) et la frontière d'architecture (le noyau tourne sans jamais importer pygame). Le rendu est testé avec une fenêtre factice.
 
 ## Modifier la ville
 
 | Fichier | Contenu |
 |---|---|
-| `pixelcity/config/settings.yaml` | graine, temps, fenêtre, besoins et effets des activités |
-| `pixelcity/config/city.yaml` | lieux : horaires, capacité, activités proposées |
-| `pixelcity/config/agents.yaml` | habitants : identité, sommeil, travail, personnalité |
-| `pixelcity/assets/maps/mvp.tmx` | la carte Tiled (géographie) |
+| `pixelcity/config/settings.yaml` | graine, temps, fenêtre, vitesse de marche, besoins |
+| `pixelcity/config/city.yaml` | lieux : horaires, capacité, qui peut y faire quoi |
+| `pixelcity/config/agents.yaml` | habitants : identité, apparence, sommeil, travail, personnalité |
+| `pixelcity/config/objects.yaml` | ce que permet chaque meuble (verbes, places, stocks, ventes) |
+| `pixelcity/config/actions.yaml` | les recettes : comment, geste par geste, on dîne, on fait ses courses, on travaille |
+| `pixelcity/config/dialogues.yaml` | les répliques des commerces (en attendant les LLM de l'étape 3) |
+| `tools/make_city.py` | le plan de la ville (gabarits de bâtiments), qui écrit `assets/maps/city.tmx` |
 
-Les fichiers YAML sont validés au démarrage avec des messages d'erreur précis. Les heures s'écrivent **entre guillemets** (`"07:30"`) : sans guillemets, YAML lit `23:00` comme un nombre.
+Les fichiers YAML sont validés au démarrage avec des messages d'erreur précis : une recette qui utilise un verbe qu'aucun meuble ne propose, ou un article inconnu, est signalée immédiatement. Les heures s'écrivent **entre guillemets** (`"07:30"`) : sans guillemets, YAML lit `23:00` comme un nombre.
 
-La carte est générée par `python tools/make_mvp_map.py`. Tu peux l'ouvrir et la modifier dans [Tiled](https://www.mapeditor.org/) (attention : relancer le script écrase les retouches). Ce que la simulation attend de la carte :
+Outils :
 
-- une couche de tuiles `ground` et une couche `structures` (encodage CSV ou base64 zlib/gzip) ;
-- sur chaque tuile du tileset, les propriétés `walkable` (bool) et `cost` (int) ;
-- un calque d'objets `places` : un rectangle par lieu, avec une propriété `place_id` égale à l'`id` du lieu dans `city.yaml` ;
-- une entrée par lieu : une case marchable sur le bord du rectangle, ouverte vers l'extérieur (la porte).
+```bash
+python tools/import_pixel_agents.py ../pixel-agents   # (re)copier les assets de pixel-agents
+python tools/draw_assets.py --sheet planche.png       # redessiner nos meubles et sols (+ planche contact)
+python tools/make_city.py                             # régénérer la carte
+python tools/preview_city.py apercu/                  # aperçu de la carte entière, sans lancer le jeu
+python tools/screenshot.py capture.png --day 1 --hour 11.5 --play 2 --zoom 4 --select marcel
+```
 
-`python tools/screenshot.py capture.png --hour 12.5 --debug` produit une capture du rendu sans ouvrir de fenêtre.
+La carte peut s'ouvrir et se retoucher dans [Tiled](https://www.mapeditor.org/) (attention : relancer `make_city.py` écrase les retouches). Ce que la simulation attend de la carte :
+
+- deux couches de tuiles, `ground` (sols) et `walls` (murs), avec sur chaque tuile du tileset les propriétés `walkable`, `cost` et, pour les murs, `wall_style` ;
+- trois calques d'objets : `places` (un rectangle par lieu, propriété `place_id` = l'`id` de `city.yaml`), `rooms` (les pièces) et `furniture` (un objet par meuble, propriétés `furniture`, `orientation`, `place_id`) ;
+- au moins une porte par lieu : une case marchable de son bord, ouverte vers l'extérieur.
+
+Au chargement, on vérifie que les meubles ne se chevauchent pas, que toutes les entrées sont reliées et que chaque place d'utilisation (devant le frigo, sur la chaise...) est atteignable.
 
 ## Pour aller plus loin
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) : les choix d'architecture, leur raison d'être et les pièges rencontrés.
-- [CREDITS.md](CREDITS.md) : licences des dépendances et des assets.
+- [CREDITS.md](CREDITS.md) : licences des dépendances, des assets et de la police.

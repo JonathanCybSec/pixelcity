@@ -1,0 +1,14 @@
+{
+  "id": "PARK_BENCH",
+  "name": "Banc public",
+  "category": "outdoor",
+  "canPlaceOnWalls": false,
+  "canPlaceOnSurfaces": false,
+  "backgroundTiles": 0,
+  "type": "asset",
+  "file": "PARK_BENCH.png",
+  "width": 32,
+  "height": 16,
+  "footprintW": 2,
+  "footprintH": 1
+}

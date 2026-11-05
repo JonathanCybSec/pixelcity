@@ -1,0 +1,14 @@
+{
+  "id": "TREE_PINE",
+  "name": "Pin",
+  "category": "outdoor",
+  "canPlaceOnWalls": false,
+  "canPlaceOnSurfaces": false,
+  "backgroundTiles": 2,
+  "type": "asset",
+  "file": "TREE_PINE.png",
+  "width": 32,
+  "height": 48,
+  "footprintW": 2,
+  "footprintH": 3
+}

@@ -1,0 +1,62 @@
+# Répliques scriptées des commerces.
+#
+# Elles occupent la place des conversations : à l'étape 3, ces échanges entre
+# client et vendeur seront générés par les LLM, avec la personnalité, les
+# souvenirs et la relation de chacun. Le moteur choisit une réplique au hasard
+# (graine fixe, donc reproductible).
+
+greet:
+  - "Bonjour !"
+  - "Bonjour, ça va ?"
+  - "Salut !"
+  - "Bonjour, quel temps aujourd'hui !"
+welcome:
+  - "Bonjour ! Qu'est-ce qui vous ferait plaisir ?"
+  - "Bonjour ! Je vous écoute."
+  - "Salut ! Comme d'habitude ?"
+order:
+  bread:
+    - "Un sandwich jambon-beurre, s'il vous plaît."
+    - "Une formule sandwich, s'il vous plaît."
+    - "Un sandwich et une baguette, merci."
+  coffee:
+    - "Un café, s'il vous plaît."
+    - "Un grand crème, merci."
+    - "Un allongé, s'il vous plaît."
+  meal:
+    - "Le plat du jour, s'il vous plaît."
+    - "Qu'est-ce qu'il y a de bon aujourd'hui ?"
+  groceries:
+    - "Bonjour, je passe en caisse."
+    - "Vous prenez la carte ?"
+serve:
+  bread:
+    - "Et voilà ! Bonne dégustation."
+    - "Tout frais sorti du four !"
+  coffee:
+    - "Voilà votre café, bien serré."
+    - "Et un café, un !"
+  meal:
+    - "Aujourd'hui, c'est blanquette. Bon appétit !"
+    - "Voilà, bon appétit !"
+  groceries:
+    - "Ça vous fera 23,40 €. Merci !"
+    - "Voilà votre ticket, bonne journée !"
+thanks:
+  - "Merci beaucoup !"
+  - "Merci, à bientôt !"
+  - "Super, merci !"
+disappointed:
+  - "Tant pis, merci quand même."
+  - "Ah, dommage… Une autre fois !"
+  - "Oh non… Bon, merci."
+self_checkout:
+  - "Bip… bip… Et voilà, c'est payé."
+  - "Caisse automatique… bon, on y va. Bip !"
+goodbye:
+  - "Bonne journée !"
+  - "À la prochaine !"
+  - "Au revoir !"
+out_of_stock:
+  - "Désolé, il n'y en a plus pour aujourd'hui !"
+  - "Ah, je viens de vendre le dernier, désolé !"

@@ -3,11 +3,12 @@
 On modélise des « lieux » et pas seulement des bâtiments : le parc n'a pas de
 murs, comme le marché ou le stade à l'étape 4.
 
-Chaque lieu « annonce » les activités qu'il permet et leur effet sur les
-besoins. C'est le principe des « smart objects » des Sims (2000) :
-l'intelligence est dans les objets, pas dans les personnages. L'agent n'a
-jamais « si faim alors boulangerie » codé en dur ; il cherche un lieu qui
-annonce `eat`.
+Un lieu donne les RÈGLES (horaires, capacité, qui a le droit de faire quoi) ;
+ses meubles donnent les POSSIBILITÉS : chaque meuble annonce des verbes
+(`cook`, `sleep`, `order`...), c'est le principe des « smart objects » des
+Sims (2000). L'intelligence est dans les objets, pas dans les personnages :
+l'agent n'a jamais « si faim alors boulangerie » codé en dur, il cherche un
+objet qui propose le verbe dont sa recette a besoin.
 """
 
 from __future__ import annotations
@@ -15,7 +16,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import StrEnum
 
-from pixelcity.sim.types import ActivityType, NeedKind, PlaceKind, TilePos, format_hhmm
+from pixelcity.sim.types import ActivityType, PlaceKind, TilePos, format_hhmm
+from pixelcity.world.furniture import Container, Furniture, Spot
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,19 +93,42 @@ class Place:
     hours: OpeningHours
     activities: frozenset[ActivityType]
     staff_activities: frozenset[ActivityType]
-    # Effets par activité, déjà fusionnés : valeurs par défaut + surcharges du lieu.
-    effects: dict[ActivityType, dict[NeedKind, float]]
     area: TileRect
     entrances: tuple[TilePos, ...]
-    # Lieux extérieurs : cases intérieures où l'on peut flâner.
-    spots: tuple[TilePos, ...] = ()
+    # Case extérieure devant chaque entrée (même ordre que `entrances`).
+    doorsteps: tuple[TilePos, ...] = ()
+    # Cases libres où l'on peut flâner (le verbe `stroll`).
+    walk_tiles: tuple[TilePos, ...] = ()
     # Agents présents. Un dict (ordonné) plutôt qu'un set : l'ordre
     # d'itération d'un set de chaînes change d'un lancement à l'autre.
     occupants: dict[str, None] = field(default_factory=dict)
+    furniture: list[Furniture] = field(default_factory=list)
+    _spots_by_verb: dict[str, list[Spot]] = field(default_factory=dict)
 
     @property
     def outdoor(self) -> bool:
         return self.kind.is_outdoor
+
+    def index_spots(self) -> None:
+        """Prépare l'index verbe → places (appelé une fois au chargement)."""
+        self._spots_by_verb.clear()
+        for item in self.furniture:
+            for spot in item.spots:
+                for verb in sorted(spot.verbs):
+                    self._spots_by_verb.setdefault(verb, []).append(spot)
+
+    def spots_for(self, verb: str) -> list[Spot]:
+        return self._spots_by_verb.get(verb, [])
+
+    def offers_verb(self, verb: str) -> bool:
+        return verb in self._spots_by_verb
+
+    def container_with(self, item: str) -> Container | None:
+        """Le premier stock du lieu qui gère cet article (frigo, vitrine...)."""
+        for furniture in self.furniture:
+            if furniture.container is not None and item in furniture.container.items:
+                return furniture.container
+        return None
 
     def offers(self, activity: ActivityType, *, staff: bool = False) -> bool:
         return activity in self.activities or (staff and activity in self.staff_activities)
@@ -135,3 +160,10 @@ class Place:
         """Entrée la plus proche à vol d'oiseau (départage stable par ordre de déclaration)."""
         fx, fy = from_pos
         return min(self.entrances, key=lambda e: abs(e[0] - fx) + abs(e[1] - fy))
+
+    def doorstep(self, from_pos: TilePos) -> TilePos | None:
+        """Le seuil (dehors) de l'entrée la plus proche."""
+        if not self.doorsteps:
+            return None
+        entrance = self.nearest_entrance(from_pos)
+        return self.doorsteps[self.entrances.index(entrance)]

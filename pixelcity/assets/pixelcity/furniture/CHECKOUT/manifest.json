@@ -1,0 +1,14 @@
+{
+  "id": "CHECKOUT",
+  "name": "Caisse du supermarché",
+  "category": "shop",
+  "canPlaceOnWalls": false,
+  "canPlaceOnSurfaces": false,
+  "backgroundTiles": 1,
+  "type": "asset",
+  "file": "CHECKOUT.png",
+  "width": 32,
+  "height": 32,
+  "footprintW": 2,
+  "footprintH": 2
+}

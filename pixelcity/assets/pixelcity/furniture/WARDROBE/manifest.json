@@ -1,0 +1,14 @@
+{
+  "id": "WARDROBE",
+  "name": "Armoire",
+  "category": "bedroom",
+  "canPlaceOnWalls": false,
+  "canPlaceOnSurfaces": false,
+  "backgroundTiles": 1,
+  "type": "asset",
+  "file": "WARDROBE.png",
+  "width": 16,
+  "height": 32,
+  "footprintW": 1,
+  "footprintH": 2
+}

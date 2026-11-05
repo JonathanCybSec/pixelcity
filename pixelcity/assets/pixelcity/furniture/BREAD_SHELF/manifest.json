@@ -1,0 +1,14 @@
+{
+  "id": "BREAD_SHELF",
+  "name": "Étagère à pains",
+  "category": "wall",
+  "canPlaceOnWalls": true,
+  "canPlaceOnSurfaces": false,
+  "backgroundTiles": 0,
+  "type": "asset",
+  "file": "BREAD_SHELF.png",
+  "width": 32,
+  "height": 32,
+  "footprintW": 2,
+  "footprintH": 2
+}

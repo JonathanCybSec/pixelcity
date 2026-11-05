@@ -1,0 +1,49 @@
+{
+  "id": "BREAD_OVEN",
+  "name": "Four à pain",
+  "category": "shop",
+  "canPlaceOnWalls": false,
+  "canPlaceOnSurfaces": false,
+  "backgroundTiles": 1,
+  "type": "group",
+  "groupType": "state",
+  "members": [
+    {
+      "type": "asset",
+      "id": "BREAD_OVEN_OFF",
+      "file": "BREAD_OVEN_OFF.png",
+      "width": 32,
+      "height": 32,
+      "footprintW": 2,
+      "footprintH": 2,
+      "state": "off"
+    },
+    {
+      "type": "group",
+      "groupType": "animation",
+      "state": "on",
+      "members": [
+        {
+          "type": "asset",
+          "id": "BREAD_OVEN_ON_1",
+          "file": "BREAD_OVEN_ON_1.png",
+          "width": 32,
+          "height": 32,
+          "footprintW": 2,
+          "footprintH": 2,
+          "frame": 0
+        },
+        {
+          "type": "asset",
+          "id": "BREAD_OVEN_ON_2",
+          "file": "BREAD_OVEN_ON_2.png",
+          "width": 32,
+          "height": 32,
+          "footprintW": 2,
+          "footprintH": 2,
+          "frame": 1
+        }
+      ]
+    }
+  ]
+}

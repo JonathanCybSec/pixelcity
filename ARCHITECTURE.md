@@ -1,6 +1,6 @@
 # Architecture de PixelCity
 
-Ce document explique les choix structurants du projet et **pourquoi** ils ont été faits. Il est mis à jour à chaque étape.
+Ce document explique les choix structurants du projet et **pourquoi** ils ont été faits. Il est mis à jour à chaque étape (dernière mise à jour : étape 2, « ville visible »).
 
 ## Vue d'ensemble
 
@@ -12,19 +12,24 @@ flowchart TB
     end
     subgraph noyau["Noyau de simulation : aucun import de pygame"]
         sim["Simulation<br/>tick() · apply()"]
-        clock["SimClock<br/>1 tick = 10 s"]
-        world["World<br/>grille, lieux, A*"]
-        agents["Agents<br/>besoins, plan, routine"]
-        planner["Planner<br/>règles (étape 1) · LLM (étape 2)"]
+        routine["Routine<br/>quelle tâche maintenant ?"]
+        executor["Exécuteur<br/>geste par geste"]
+        planner["Planner<br/>règles (LLM à l'étape 3)"]
+        desks["Comptoirs<br/>file, service, stock"]
+        relations["Relations<br/>familiarité, affinité"]
+        world["World<br/>grille, lieux, meubles, A*"]
         events["EventLog<br/>événements structurés"]
     end
-    data["config/*.yaml (Pydantic)<br/>assets/maps/mvp.tmx"]
+    data["config/*.yaml (Pydantic)<br/>assets/maps/city.tmx<br/>manifest.json des meubles"]
 
     app -->|"tick()"| sim
     headless -->|"tick()"| sim
-    app -.->|lecture seule| sim
-    sim --> clock & world & agents & events
-    agents --> planner
+    app -.->|lecture seule + abonnement| events
+    sim --> routine --> executor
+    routine --> planner
+    executor --> world
+    sim --> desks --> relations
+    executor & desks --> events
     data -->|chargement au démarrage| sim
 ```
 
@@ -34,11 +39,9 @@ flowchart TB
 
 Le noyau (`sim/`, `world/`, `agents/`, `config/`) n'importe jamais pygame. Le rendu lit l'état de la simulation et ne le modifie pas. Toute action extérieure passe par `Simulation.apply(commande)` et s'exécute au début du tick suivant (patron Commande) : chaque changement a lieu à un instant précis, donc reproductible.
 
-**Pourquoi** : tester vite, simuler des semaines en quelques secondes, et à l'étape 6 lancer des dizaines de simulations A/B en parallèle, sans fenêtre.
+**Pourquoi** : tester vite, simuler des semaines en quelques secondes, et plus tard lancer des dizaines de simulations A/B en parallèle, sans fenêtre.
 
-**Comment c'est garanti** : `tests/test_simulation.py::test_le_noyau_tourne_sans_pygame` lance un interpréteur neuf, simule une journée et échoue si `pygame` apparaît dans `sys.modules`. Ce test a immédiatement révélé un problème réel (voir « Pièges rencontrés »).
-
-Dans `main.py`, le moteur n'est importé que si l'on ouvre une fenêtre (import « paresseux »).
+**Comment c'est garanti** : `tests/test_simulation.py::test_le_noyau_tourne_sans_pygame` lance un interpréteur neuf, simule une journée et échoue si `pygame` apparaît dans `sys.modules`. Même le catalogue des meubles (`world/catalog.py`) ne lit que du JSON : les images ne sont chargées que par le moteur.
 
 ## 2. Un temps simulé discret
 
@@ -46,108 +49,185 @@ Dans `main.py`, le moteur n'est importé que si l'on ouvre une fenêtre (import 
 |---|---|
 | Durée d'un tick | 10 secondes simulées (comme Smallville) |
 | Ticks par jour | 8 640 |
-| Vitesse x1 | 14,4 ticks par seconde réelle (1 jour ≈ 10 min) |
-| Vitesse x10 | 144 ticks par seconde réelle |
-| Headless | aussi vite que possible (≈ 50 000 ticks/s avec 3 habitants) |
+| Vitesse x1 | 6 ticks par seconde réelle : 1 minute simulée = 1 seconde (1 jour = 24 min) |
+| Vitesses x3, x10, x30 | 18, 60, 180 ticks par seconde réelle |
+| Headless | aussi vite que possible (≈ 22 000 ticks/s avec 6 habitants : une semaine en 3 s) |
 
-La vitesse ne change **jamais** la taille du tick, seulement le nombre de ticks exécutés par seconde réelle (`engine/app.py`, patron de l'accumulateur, « Fix Your Timestep! » de Glenn Fiedler, 2004). À x10, un habitant fait exactement la même chose qu'à x1. Le rendu interpole les positions entre deux ticks pour rester fluide, et un plafond de ticks par image évite la « spirale de la mort » quand la machine ne suit plus.
+La vitesse ne change **jamais** la taille du tick, seulement le nombre de ticks exécutés par seconde réelle (`engine/app.py`, patron de l'accumulateur, « Fix Your Timestep! » de Glenn Fiedler, 2004). À x30, un habitant fait exactement la même chose qu'à x1. Le rendu interpole les positions entre deux ticks, et un plafond de ticks par image évite la « spirale de la mort » quand la machine ne suit plus.
 
-L'horloge (`sim/clock.py`) ne lit jamais l'heure réelle. Le tick 0 est un lundi à 00:00.
+L'étape 2 a ralenti x1 (1 jour = 24 min au lieu de 10) : à l'ancienne vitesse, on ne voyait pas quelqu'un sortir le beurre du frigo, et les bulles disparaissaient avant d'être lues.
 
 ## 3. Déterminisme
 
 Même graine ⇒ même simulation, à l'octet près. Règles appliquées partout dans le noyau :
 
-- un générateur `random.Random` **par sous-système**, dérivé de la graine maîtresse par SHA-256 (`sim/rng.py`) : ajouter un tirage dans un sous-système ne décale pas les autres ;
+- un générateur `random.Random` **par sous-système**, dérivé de la graine maîtresse par SHA-256 (`sim/rng.py`) : `planner:lea`, `stroll:paul`, `dialogue:<comptoir>`, `relations`... Ajouter un tirage dans un sous-système ne décale pas les autres ;
 - jamais `hash()` pour dériver une graine (randomisé à chaque lancement de Python) ;
-- jamais d'itération sur un `set` de chaînes (ordre variable d'un lancement à l'autre) : des `dict` (ordonnés) ou des listes ;
-- jamais l'heure réelle dans la simulation ;
-- ordre de mise à jour des agents fixe (celui de `agents.yaml`).
+- jamais d'itération sur un `set` de chaînes : des `dict` (ordonnés) ou des listes ;
+- jamais l'heure réelle dans la simulation (l'interface, elle, mesure ses animations en temps réel, mais ne touche pas au noyau) ;
+- ordre de mise à jour fixe : les habitants dans l'ordre de `agents.yaml`, puis les comptoirs.
 
 Le journal des événements calcule une empreinte SHA-256 cumulative : deux simulations identiques ont la même empreinte (testé).
 
-**Limite connue pour la suite** : un LLM n'est pas parfaitement déterministe, même à température 0. À l'étape 2, on ajoutera un mode où l'horloge attend les réponses (« lockstep ») et un cache des réponses. Pour les tests A/B de l'étape 6, on comparera des **distributions** sur plusieurs simulations par variante, pas un duel unique.
+**Limite connue pour la suite** : un LLM n'est pas parfaitement déterministe, même à température 0. À l'étape 3, on ajoutera un mode où l'horloge attend les réponses (« lockstep ») et un cache des réponses.
 
 ## 4. La carte : Tiled pour la géographie, YAML pour les règles
 
-- `assets/maps/mvp.tmx` : où sont les choses (sol, murs, portes, rectangles des lieux).
-- `config/city.yaml` : ce que font les lieux (horaires, capacité, activités proposées, effets).
-- Le lien : la propriété `place_id` de chaque rectangle Tiled = l'`id` du lieu dans le YAML. Les deux sources sont contrôlées croisées au chargement.
+- `assets/maps/city.tmx` (généré par `tools/make_city.py`) : où sont les choses. Deux couches de tuiles (`ground`, `walls`) et trois calques d'objets (`places`, `rooms`, `furniture`).
+- `config/city.yaml` : les règles des lieux (horaires, capacité, qui peut y faire quoi).
+- `config/objects.yaml` : ce que permet chaque type de meuble.
 
-La grille de marche vient des propriétés des tuiles : coût 1 (trottoir, passage piéton, allée, porte), 3 (pelouse), 8 (chaussée), 0 (infranchissable). A* minimise la somme des coûts : les habitants empruntent naturellement trottoirs et passages piétons, sans règle spéciale. Les entrées d'un lieu sont détectées automatiquement (cases marchables du bord, ouvertes vers l'extérieur) et la connexité de toutes les entrées est vérifiée au chargement.
+La ville est construite par **gabarits** (maison, appartement, boulangerie...) posés sur un plan de rues : c'est ce qui permettra de passer à une centaine de bâtiments sans tout dessiner à la main.
 
-**Lieux, pas seulement bâtiments** : le parc est un lieu extérieur, sans murs ; l'agent y reste visible et y flâne. À l'étape 4, le marché et le stade fonctionneront pareil.
+La grille de marche vient des propriétés des tuiles : coût 1 (trottoir, passage piéton, allée, sol intérieur), 3 (pelouse), 8 (chaussée), 0 (mur, eau). Les meubles bloquent ensuite leurs tuiles « au sol ». A* minimise la somme des coûts : les habitants empruntent naturellement trottoirs et passages piétons.
 
-**Smart objects** : chaque lieu « annonce » ses activités et leurs effets sur les besoins (principe des *Sims*, 2000). L'agent cherche un lieu qui annonce `eat` ; il n'a jamais « si faim alors boulangerie » codé en dur. Les activités réservées aux employés (`staff_activities`) sont accessibles hors des heures d'ouverture : le boulanger arrive avant ses clients.
+Au chargement, on vérifie : pas deux meubles au même endroit, toutes les entrées reliées, chaque place d'utilisation atteignable depuis la porte de son lieu. Ces contrôles ont attrapé un vrai bug de gabarit (voir « Pièges »).
 
-## 5. Les habitants
+## 5. Les meubles : des « smart objects »
 
-### Besoins
+Le principe des *Sims* (2000) : l'intelligence est dans les objets, pas dans les personnages. Un habitant n'a jamais « si faim alors frigo » codé en dur ; sa recette demande le verbe `take_food`, et il cherche un objet qui le propose.
 
-Jauges de 0 à 100 (faim, énergie, hygiène, loisir) qui baissent avec le temps simulé et remontent avec les activités. Un besoin devient urgent sous son seuil `critical` et n'est considéré comblé qu'au-dessus de `satisfied` : cette **hystérésis** évite qu'un agent mange une bouchée, reparte et revienne aussitôt. Le loisir n'est jamais une urgence (on ne quitte pas son travail parce qu'on s'ennuie) et l'hygiène ne réveille personne.
+| Notion | Exemple | Où |
+|---|---|---|
+| Emprise et rangées d'arrière-plan | le lit fait 1×3 ; sa rangée du haut « dépasse » sur le mur | `manifest.json` (format pixel-agents) |
+| Place d'utilisation (`Spot`) | devant le frigo, sur la chaise, derrière le comptoir | `objects.yaml`, `world/furniture.py` |
+| Posture et orientation | assis face à la table, couché, caché (douche) | `objects.yaml` |
+| Rôle | `staff` derrière le comptoir, `customer` devant, `resident` pour le lit | `objects.yaml` |
+| Verbes accordés (`grants`) | la table donne `eat` aux chaises qui la regardent ; la télé donne `watch_tv` au canapé | `world/furniture.py::apply_grants` |
+| Stock (`container`) | le frigo et ses provisions, la vitrine et ses sandwichs | `objects.yaml` |
 
-Le social arrivera à l'étape 2 (il faut des conversations). L'argent et la santé ne sont pas des besoins comme les autres (une ressource, un état lent) : ils seront modélisés comme tels à l'étape 4.
+Une place se **réserve** : deux habitants ne prennent jamais la même chaise (vérifié sur une semaine par les tests). Un siège est infranchissable, mais A* accepte de le prendre pour départ ou pour arrivée : on va s'asseoir sur une chaise, on ne la traverse pas.
 
-### Plans
+Les verbes accordés savent qui les accorde (`Spot.granted_by`) : c'est la télé qu'on allume quand on regarde la télé depuis le canapé, pas le canapé.
 
-Un `DayPlan` est une suite de blocs « lieu + activité » couvrant exactement 24 heures, en **minutes absolues** depuis le début de la simulation (pas de piège de minuit). Le `PlanBuilder` construit des plans sans trou par construction : chaque bloc commence là où le précédent s'arrête.
+## 6. Recettes et tâches : les besoins deviennent des gestes
 
-Les blocs de travail sont **ponctuels** : la routine fait partir l'agent assez tôt (temps de trajet estimé + 5 min) pour arriver à l'heure. Les autres blocs commencent à l'arrivée.
+Une **recette** (`actions.yaml`) est une suite d'étapes. Chaque étape a un verbe, une durée (ou « jusqu'à la fin du bloc »), des effets sur les besoins (en points par heure) et des mouvements d'objets : `take` (frigo → main), `consume` (main → mangé), `put` (main → frigo, avec conversion : un sac de courses = 10 provisions), `produce` (four → vitrine), `make` (provisions → gamelle), `buy` (comptoir → main, via le service).
 
-### Planificateur interchangeable
-
-`Planner` est un `Protocol` (typage structurel) : la routine appelle `plan_day()` sans savoir qui répond. Aujourd'hui, `RuleBasedPlanner` combine métier, jour de la semaine et pondérations de personnalité (Big Five) pour choisir lieux et durées. À l'étape 2, un `LLMPlanner` répondra à la même interface et gardera le planificateur à règles comme repli.
-
-### Routine : une machine à états explicite
+Une **tâche** (`agents/tasks.py`) exécute une recette. Chaque étape traverse les mêmes phases :
 
 ```mermaid
 stateDiagram-v2
-    [*] --> ACTIVE: départ endormi chez soi
-    ACTIVE --> WALKING: nouvelle cible ailleurs
-    ACTIVE --> IDLE: aucun chemin, nouvel essai 30 min plus tard
-    IDLE --> WALKING: chemin trouvé
-    WALKING --> ACTIVE: arrivée, accès autorisé
-    WALKING --> WAITING: lieu fermé, ouvre bientôt
-    WALKING --> WALKING: refus (fermé, complet), repart vers un autre lieu
-    WAITING --> ACTIVE: ouverture
-    WAITING --> IDLE: attente trop longue, repli
+    [*] --> TRAVEL: aller au lieu
+    TRAVEL --> WAIT_OPEN: fermé, ouvre bientôt
+    WAIT_OPEN --> TRAVEL: ouverture
+    TRAVEL --> SEEK: entré
+    SEEK --> GOTO: objet libre trouvé et réservé
+    SEEK --> QUEUE: étape « order »
+    GOTO --> PERFORM: arrivé à la place
+    QUEUE --> SEEK: servi (étape suivante)
+    PERFORM --> SEEK: étape finie (étape suivante)
+    SEEK --> DONE: plus d'étape
+    SEEK --> FAILED: impossible (frigo vide...)
+    QUEUE --> FAILED: personne pour servir
 ```
 
-Un agent `ACTIVE` qui enchaîne deux activités au même endroit (douche puis petit-déjeuner) reste `ACTIVE` : seule l'activité change.
+Les tâches **s'empilent** (`Agent.tasks`) : en bas, la tâche du bloc du plan ; au-dessus, ce qui passe devant. Comme une pile d'appels : on traite l'interruption, puis on reprend.
 
-À chaque tick : plan du jour → besoins → urgences → choix de la cible (dérogation, sinon bloc du plan, avec départ anticipé) → machine à états. Les **dérogations** (`Override`) gèrent les urgences (faim critique : aller manger au lieu ouvert le plus proche) et les replis (lieu fermé : un autre lieu équivalent, sinon la maison), sans jamais réécrire le plan.
+- **Urgence** (`URGENT`) : un besoin critique (vessie, faim, fatigue, hygiène). L'étape interrompue garde le temps qui lui restait ; un objet allumé le reste (le four continue de cuire). On finit son assiette d'abord si elle est presque vide, et on passe aux toilettes *avant* de quitter un lieu qui en a.
+- **Service** (`SERVE`) : un commerçant à son poste, un client qui attend, personne au comptoir : il y va.
+- **Corvée** (`CHORE`) : rentrer chez soi avec des courses déclenche leur rangement.
 
-Les chemins sont des **tuples immuables** partagés via le cache du pathfinder : l'agent avance avec un index au lieu de modifier le chemin, sinon il corromprait le cache pour tous les autres.
+Quand le bloc du plan change, une tâche **entamée** (on a commandé son plat, rempli son panier) peut déborder un peu plutôt que d'être abandonnée à mi-chemin. Une tâche finie en avance laisse place à un « bouche-trou » adapté au lieu (télé, flâner au parc), ou l'on passe directement au bloc suivant.
 
-## 6. Événements
+## 7. Les comptoirs : un petit protocole entre deux habitants
 
-Chaque action notable produit un `Event` structuré (tick, type, agent, lieu, données JSON). Le journal est observable (patron Observateur) : aujourd'hui le mode headless s'y abonne ; plus tard, le journal de l'interface (étape 5), la persistance SQLite (étape 7) et les métriques du Test de produit (étape 6).
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant D as Comptoir
+    participant V as Vendeur
+    C->>D: rejoint la file (étape « order »)
+    D-->>C: position dans la file (il avance quand elle se vide)
+    V->>D: tient la place derrière le comptoir
+    Note over D: client devant + vendeur derrière : la session commence
+    C->>V: « Bonjour ! Un sandwich, s'il vous plaît. »
+    V->>C: « Tout frais sorti du four ! » (ou « Désolé, plus rien… »)
+    C->>V: « Merci beaucoup ! »
+    V->>C: « Bonne journée ! »
+    D-->>C: l'article passe du stock à l'inventaire
+    D-->>D: rencontre client-vendeur : la relation évolue
+```
 
-## 7. Configuration
+Comme une poignée de main réseau (SYN, SYN-ACK, ACK), rien ne se passe tant que les deux ne sont pas en place. Sans caissière, la caisse du supermarché (`self_service: true`) passe en libre-service au bout de deux minutes. À l'étape 3, les répliques scriptées (`dialogues.yaml`) seront remplacées par une conversation générée par les LLM, sur ce même mécanisme de rencontre.
 
-Les YAML sont validés par Pydantic au démarrage (on valide aux frontières, on fait confiance à l'intérieur) avec `extra="forbid"` (une faute de frappe dans une clé est une erreur, pas un silence) et `frozen=True`. Les erreurs nomment l'élément fautif par son `id` (`agents.lea.home`) plutôt que par son indice. Lecture avec `yaml.safe_load` uniquement.
+## 8. Relations
 
-## Pièges rencontrés pendant l'étape 1
+Chaque service au comptoir est une rencontre (`sim/relations.py`) : la familiarité augmente, l'affinité bouge selon la compatibilité des caractères (Big Five : agréabilité et extraversion aident, ouvertures proches aussi, névrosisme complique). L'effet des premières rencontres est le plus fort. Paliers : froid, connaissance, sympathie, amitié, grande amitié. Choix assumé pour démarrer : une affinité symétrique par paire.
+
+## 9. Le planificateur
+
+`Planner` est un `Protocol` (typage structurel) : la routine appelle `plan_day()` sans savoir qui répond. `RuleBasedPlanner` construit une journée de blocs « lieu + activité + recette » en minutes absolues, sans trou par construction (`PlanBuilder`). Il tient compte :
+
+- du métier et des horaires (blocs de travail **ponctuels** : la routine fait partir l'habitant assez tôt) ;
+- du trajet domicile-travail (on raccourcit le matin si besoin) ;
+- du **frigo** : peu de provisions, des courses sont ajoutées à la journée ;
+- du déjeuner : dehors si un lieu est ouvert assez longtemps, à la maison si elle est proche, sinon une **gamelle** préparée le matin ;
+- de la personnalité et de la distance pour choisir ses loisirs (un retraité ne traverse pas la ville trois fois par jour).
+
+À l'étape 3, un `LLMPlanner` répondra à la même interface et gardera celui-ci comme repli.
+
+## 10. Le rendu : pixel art « pixel perfect »
+
+1. On dessine la portion visible du monde dans une petite image où 1 pixel = 1 pixel de sprite (≈ 430 × 240 en zoom 3).
+2. On l'agrandit d'un facteur **entier**, au plus proche voisin, et on la pose avec un décalage de quelques pixels écran : le défilement reste fluide, les pixels restent carrés.
+3. Le sol de toute la ville est pré-rendu une fois (« baking ») ; murs, meubles et habitants sont triés par profondeur (algorithme du peintre, vue 3/4).
+
+Les règles de profondeur viennent de pixel-agents : un meuble se trie par le bas de son sprite, une chaise par le bas de sa première rangée (l'habitant assis passe devant), une chaise vue de dos passe devant l'habitant (son dossier cache le bas du corps), un objet posé passe juste devant son support. Un dormeur est dessiné dans son lit : la tête sur l'oreiller, puis la couverture par-dessus.
+
+La lumière se calcule sur la petite image : une teinte multipliée selon l'heure (aube, jour, crépuscule, nuit), puis des lumières ajoutées (pièces où quelqu'un est réveillé, lampadaires). Coût quasi nul.
+
+Coût mesuré (1600 × 900, fenêtre factice) : ≈ 8 ms par image en zoom 3, interface comprise.
+
+## 11. L'interface
+
+- **Mode immédiat** : tout est redessiné à chaque image ; chaque élément cliquable enregistre sa zone (`ui/widgets.py::Hits`).
+- **Verre dépoli** : la zone de l'écran derrière un panneau est réduite ×4, floutée (`transform.gaussian_blur`), ré-agrandie, puis voilée. Flouter petit coûte 16 fois moins cher.
+- **Police Inter** à la résolution de l'écran : le monde est en pixel art, l'interface reste nette.
+- **Bulles en temps réel** : à x30, une réplique dure 0,07 seconde réelle. Les bulles se mesurent donc en temps réel (≈ 3 s), quelle que soit la vitesse.
+- L'interface s'abonne au journal d'événements (patron Observateur) : la simulation ignore qu'elle existe.
+
+## 12. Événements et configuration
+
+Chaque action notable produit un `Event` structuré (tick, type, agent, lieu, données JSON) : départs, arrivées, tâches, étapes, urgences, files, services, ruptures de stock, répliques, relations. Le journal de l'interface, le mode headless et l'export JSONL s'y abonnent ; plus tard, la persistance SQLite et les métriques du Test de produit.
+
+Les YAML sont validés par Pydantic au démarrage (`extra="forbid"`, `frozen=True`), puis contrôlés croisés : une recette qui utilise un verbe qu'aucun meuble ne propose, ou un article inconnu, est une erreur de démarrage, pas un bug à 14 h 37.
+
+## Pièges rencontrés pendant l'étape 2
 
 | Piège | Ce qui s'est passé | Parade |
 |---|---|---|
-| `import pytmx` importe pygame | Son `__init__.py` charge ses outils pygame dès qu'il le peut. Le test de frontière l'a détecté. | Lecteur TMX minimal maison pour le noyau (`world/tmx.py`) ; pytmx seulement dans le rendu. |
-| Une `StrEnum` hérite de `str` | Une propriété `Weekday.index` écrasait `str.index()` en silence. `mypy --strict` l'a signalé. | Propriété renommée `number`. |
-| YAML 1.1 et les heures | Sans guillemets, `23:00` devient le nombre 1380 (base 60), mais `07:00` reste une chaîne. | Les heures sont exigées entre guillemets, avec un message d'erreur explicite. |
-| Équilibrage des besoins | Les premières valeurs faisaient tomber l'hygiène à 15 chaque nuit et le loisir à 0 en fin de semaine. | Réglages ajustés en simulant 3 semaines sur plusieurs graines (écart min-max de chaque jauge). |
-| Encodage de la console Windows | Une sortie redirigée vers un fichier utilise cp1252, qui ne connaît pas « ─ » ni « → » : `print()` plante. | `main.py` force l'UTF-8 sur stdout/stderr ; les tests lancent leurs sous-processus en UTF-8. |
-| Tester sans Windows | Le code est développé sous Linux, la cible est Windows. | CI GitHub Actions sur Ubuntu **et** Windows à chaque pull request. |
+| Une table + deux chaises = un mur | Dans un appartement de 4 cases de large, la rangée « table et chaises » coupait la cuisine et la chambre du reste du logement. | La vérification « chaque place est atteignable » l'a détecté au chargement ; le gabarit garde une colonne libre. |
+| Le mur sud cache la dernière rangée | En vue 3/4, la face d'un mur « monte » d'une tuile : une plante posée là disparaissait à moitié. | Aucun meuble sur la dernière rangée intérieure des gabarits. |
+| Départ anticipé trop zélé | « Déjà sur le lieu du prochain rendez-vous » faisait sauter tout le bloc en cours : Léa ne déjeunait jamais. | Déjà sur place = trajet nul, on part 5 minutes avant, pas tout de suite. |
+| Repas coupé à l'heure pile | Le plat acheté restait dans les mains, le ventre vide : fuite d'inventaire et faim à zéro. | Une tâche entamée peut déborder ; on ne repasse pas commande si l'on porte déjà le plat ; une fringale fait d'abord manger ce qu'on a sur soi. |
+| Courses à l'heure du petit-déjeuner | Un bloc « courses » prévu à 10:00 pour quelqu'un levé à 9:30 ne durait plus que 25 min : panier rempli, jamais payé. | Les courses commencent quand on est prêt. |
+| `type`, nom réservé | pytmx refuse une propriété Tiled nommée `type` (attribut réservé des objets). | Propriété renommée `furniture`. |
+| Le « tofu » | Le séparateur du journal « ──── » s'affichait en carrés : Inter n'a pas les caractères de dessin de boîte. | Tirets cadratins. |
+| Les bulles du passé | À l'ouverture de la fenêtre, l'interface rejouait le journal… et affichait des répliques vieilles de trois heures. | Le rejeu alimente le journal, pas les bulles. |
+| Liens symboliques sous Windows | Un test créait des liens symboliques : il faut des droits d'administrateur sous Windows. | Inutile : le noyau ne lit que le XML de la carte. |
+
+## Pièges de l'étape 1 (toujours d'actualité)
+
+| Piège | Parade |
+|---|---|
+| `import pytmx` importe pygame | Lecteur TMX minimal maison pour le noyau (`world/tmx.py`) ; pytmx seulement dans le rendu. |
+| Une `StrEnum` hérite de `str` (`Weekday.index` écrasait `str.index()`) | Propriété renommée `number`. |
+| YAML 1.1 : `23:00` sans guillemets devient 1380, `on` devient `True` | Heures exigées entre guillemets ; `switch_on: true` plutôt que `state: on`. |
+| Console Windows en cp1252 | `main.py` force l'UTF-8 ; les tests lancent leurs sous-processus en UTF-8. |
 
 ## Préparé pour la suite
 
-- `Planner` (Protocol) : point de branchement du LLM à l'étape 2.
-- `Simulation.apply()` : point d'entrée du mode Dieu (étape 5) et des réponses asynchrones du LLM (étape 2).
-- `EventLog` : source des métriques, du journal et de la persistance.
-- `resources.py` : résolution des chemins prête pour PyInstaller (étape 8).
+- `Planner` (Protocol) et les comptoirs : points de branchement des LLM à l'étape 3 (plans et conversations).
+- `Relations` : l'affinité sera nourrie par les conversations ; le flirt n'y sera possible qu'entre adultes (vérifié dans le code).
+- `AgentModel.sprite` et la colorisation de pixel-agents : base du studio de création d'habitants (étape 4).
+- `Simulation.apply()` : point d'entrée du mode Dieu et des réponses asynchrones des LLM.
+- `resources.py` et les `package-data` : chemins et données prêts pour PyInstaller.
 
 ## Limites connues
 
-- Tous les agents sont mis à jour à chaque tick (≈ 7 µs par agent). Avec 100 habitants, une journée simulée prendrait environ 6 s en headless, contre 0,2 s aujourd'hui ; l'étape 7 passera à une mise à jour événementielle (un agent qui dort n'a rien à calculer).
-- Les habitants se traversent (pas de collisions entre eux), comme dans Smallville : gérer les embouteillages coûterait beaucoup pour un gain visuel faible.
-- Les intérieurs ne sont pas encore affichés (étape 5) : une pastille de couleur au-dessus de la porte indique qui est à l'intérieur.
-- Sous Windows avec un écran haute densité, la fenêtre peut être mise à l'échelle par le système (image légèrement floue) ; à traiter lors de l'interface complète (étape 5).
+- Tous les habitants sont mis à jour à chaque tick. Avec 100 habitants, une journée simulée prendrait ~6 s en headless ; une mise à jour événementielle viendra avec l'optimisation (un habitant qui dort n'a rien à calculer).
+- Les habitants se traversent (pas de collisions entre eux), comme dans Smallville et pixel-agents.
+- Une seule caisse, un seul vendeur par commerce : pendant la pause déjeuner du barista, les clients attendent puis renoncent.
+- L'affinité est symétrique ; les répliques sont scriptées.
+- Sous Windows avec un écran haute densité, la fenêtre peut être mise à l'échelle par le système (image légèrement floue).

@@ -9,7 +9,16 @@ from typing import Any
 import yaml
 from pydantic import BaseModel, ValidationError
 
-from pixelcity.config.schemas import AgentsConfig, CityConfig, PlaceModel, Settings
+from pixelcity.config.schemas import (
+    SPECIAL_VERBS,
+    ActionsConfig,
+    AgentsConfig,
+    CityConfig,
+    DialoguesConfig,
+    ObjectsConfig,
+    PlaceModel,
+    Settings,
+)
 from pixelcity.resources import resource_path
 from pixelcity.sim.types import ActivityType, PlaceKind
 
@@ -23,6 +32,9 @@ class GameConfig:
     settings: Settings
     city: CityConfig
     agents: AgentsConfig
+    objects: ObjectsConfig
+    actions: ActionsConfig
+    dialogues: DialoguesConfig
 
     def place(self, place_id: str) -> PlaceModel:
         for place in self.city.places:
@@ -41,9 +53,41 @@ def load_config(config_dir: Path | None = None) -> GameConfig:
         settings=_load_model(directory / "settings.yaml", Settings),
         city=_load_model(directory / "city.yaml", CityConfig),
         agents=_load_model(directory / "agents.yaml", AgentsConfig),
+        objects=_load_model(directory / "objects.yaml", ObjectsConfig),
+        actions=_load_model(directory / "actions.yaml", ActionsConfig),
+        dialogues=_load_model(directory / "dialogues.yaml", DialoguesConfig),
     )
     _cross_validate(config)
+    _check_verbs_and_items(config)
     return config
+
+
+def _check_verbs_and_items(config: GameConfig) -> None:
+    """Les recettes ne doivent utiliser que des verbes et articles qui existent.
+
+    Une faute de frappe (`take_fod`) ferait échouer l'étape en silence au
+    milieu de la simulation : on la signale au démarrage.
+    """
+    offered: set[str] = set(SPECIAL_VERBS)
+    for behaviour in config.objects.objects.values():
+        for use in behaviour.uses:
+            offered.update(use.verbs)
+        for grant in behaviour.grants:
+            offered.update(grant.verbs)
+    errors: list[str] = []
+    for name, recipe in config.actions.recipes.items():
+        errors.extend(
+            f"actions.yaml : {name} utilise le verbe {step.verb!r}, qu'aucun objet ne propose"
+            for step in recipe.steps
+            if step.verb not in offered
+        )
+    items = set(config.actions.items)
+    for type_id, behaviour in config.objects.objects.items():
+        stocked = set(behaviour.container.items) if behaviour.container else set()
+        for item in sorted((stocked | set(behaviour.sells)) - items):
+            errors.append(f"objects.yaml : {type_id} utilise l'article inconnu {item!r}")
+    if errors:
+        raise ConfigError("Configuration incohérente\n" + "\n".join(f"  → {e}" for e in errors))
 
 
 def _load_model[M: BaseModel](path: Path, model: type[M]) -> M:

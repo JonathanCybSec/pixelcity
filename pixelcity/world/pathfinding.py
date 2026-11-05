@@ -38,12 +38,15 @@ def astar(grid: Grid, start: TilePos, goal: TilePos) -> Path | None:
     """Plus court chemin (en coût) de `start` à `goal`, ou None s'il n'existe pas.
 
     Le chemin inclut le départ et l'arrivée. Coût d'un pas = coût de la tuile
-    sur laquelle on entre.
+    sur laquelle on entre. Départ et arrivée peuvent être des sièges
+    (voir `Grid.seats`) : on peut aller s'asseoir sur une chaise, et en partir,
+    mais jamais la traverser.
     """
-    if not grid.is_walkable(start) or not grid.is_walkable(goal):
+    if not grid.is_endpoint(start) or not grid.is_endpoint(goal):
         return None
     if start == goal:
         return (start,)
+    goal_is_seat = not grid.is_walkable(goal)
 
     # Entrées du tas : (f, h, compteur, case).
     # - h en 2e position : à f égal, on préfère la case la plus proche du but
@@ -70,10 +73,13 @@ def astar(grid: Grid, start: TilePos, goal: TilePos) -> Path | None:
             continue
         closed.add(current)
         current_g = g_score[current]
-        for neighbor in grid.neighbors(current):
+        neighbors = list(grid.neighbors(current))
+        if goal_is_seat and manhattan(current, goal) == 1:
+            neighbors.append(goal)  # le siège n'est franchissable que comme arrivée
+        for neighbor in neighbors:
             if neighbor in closed:
                 continue
-            tentative_g = current_g + grid.cost(neighbor)
+            tentative_g = current_g + (grid.cost(neighbor) or _MIN_TILE_COST)
             if tentative_g < g_score.get(neighbor, 1 << 60):
                 g_score[neighbor] = tentative_g
                 came_from[neighbor] = current

@@ -7,9 +7,9 @@
 Règles d'architecture :
 - AUCUN import de pygame dans ce module ni dans ceux qu'il importe ;
 - le monde n'est modifié QUE pendant `tick()`. Les demandes extérieures
-  (mode Dieu à l'étape 5, réponses du LLM à l'étape 2) passent par
-  `apply(commande)` et sont exécutées au début du tick suivant. Ainsi, tout
-  changement a lieu à un instant précis et reproductible (patron Commande).
+  (mode Dieu, réponses des LLM à l'étape 3) passent par `apply(commande)` et
+  sont exécutées au début du tick suivant. Ainsi, tout changement a lieu à
+  un instant précis et reproductible (patron Commande).
 """
 
 from __future__ import annotations
@@ -18,17 +18,22 @@ from collections import deque
 from pathlib import Path
 from typing import Protocol
 
-from pixelcity.agents.agent import Agent, AgentState
+from pixelcity.agents.agent import Agent
+from pixelcity.agents.movement import place_at
 from pixelcity.agents.needs import Needs
 from pixelcity.agents.planner import Planner, RuleBasedPlanner
-from pixelcity.agents.routine import RoutineContext, update_agent
+from pixelcity.agents.routine import update_agent
 from pixelcity.config.loader import GameConfig
 from pixelcity.config.schemas import AgentModel
-from pixelcity.resources import resource_path
+from pixelcity.resources import assets_dir
 from pixelcity.sim.clock import SimClock
-from pixelcity.sim.events import Event, EventKind, EventLog
+from pixelcity.sim.context import SimContext
+from pixelcity.sim.events import EventKind, EventLog
+from pixelcity.sim.relations import Relations
 from pixelcity.sim.rng import RngRegistry
-from pixelcity.sim.types import ActivityType
+from pixelcity.sim.service import build_desks, update_desks
+from pixelcity.sim.types import Pose
+from pixelcity.world.catalog import load_catalog
 from pixelcity.world.world import World, load_world
 
 
@@ -36,6 +41,12 @@ class Command(Protocol):
     """Une modification du monde demandée de l'extérieur, appliquée au tick suivant."""
 
     def execute(self, sim: Simulation) -> None: ...
+
+
+def default_asset_roots() -> tuple[Path, ...]:
+    """Les meubles de pixel-agents, puis les nôtres (qui l'emportent en cas de doublon)."""
+    root = assets_dir()
+    return (root / "pixel_agents", root / "pixelcity")
 
 
 class Simulation:
@@ -47,16 +58,19 @@ class Simulation:
         map_path: Path | None = None,
         planner: Planner | None = None,
         max_events: int | None = 50_000,
+        asset_roots: tuple[Path, ...] | None = None,
     ) -> None:
         self.config = config
         self.seed = config.settings.seed if seed is None else seed
         self.clock = SimClock(config.settings.time.tick_seconds)
         self.rng = RngRegistry(self.seed)
         self.events = EventLog(max_events)
+        catalog = load_catalog(*(asset_roots or default_asset_roots()))
         self.world: World = load_world(
-            map_path or resource_path("assets", "maps", config.city.map),
+            map_path or assets_dir() / "maps" / config.city.map,
             config.city,
-            config.settings,
+            config.objects,
+            catalog,
         )
         self.planner: Planner = planner or RuleBasedPlanner()
         # Dict ordonné comme agents.yaml : l'ordre de mise à jour des agents
@@ -64,13 +78,24 @@ class Simulation:
         self.agents: dict[str, Agent] = {
             model.id: self._create_agent(model) for model in config.agents.agents
         }
+        self.desks = build_desks(self.world.furniture)
+        self.relations = Relations()
+        minutes_per_tick = self.clock.tick_seconds / 60
+        self.ctx = SimContext(
+            config=config,
+            world=self.world,
+            clock=self.clock,
+            events=self.events,
+            rngs=self.rng,
+            agents=self.agents,
+            desks=self.desks,
+            relations=self.relations,
+            walk_tiles_per_tick=config.settings.walk_speed_tiles_per_minute * minutes_per_tick,
+            hours_per_tick=self.clock.hours_per_tick,
+            minutes_per_tick=minutes_per_tick,
+        )
         self._commands: deque[Command] = deque()
-        self._ctx = RoutineContext.create(
-            self.world, self.clock, config.settings, self.events, self.planner, self.rng
-        )
-        self.events.emit(
-            Event(0, EventKind.SIM_STARTED, data={"seed": self.seed, "agents": len(self.agents)})
-        )
+        self.ctx.emit(EventKind.SIM_STARTED, seed=self.seed, agents=len(self.agents))
 
     # ------------------------------------------------------------------ #
     # Faire avancer le temps
@@ -80,15 +105,12 @@ class Simulation:
             self._commands.popleft().execute(self)
         clock = self.clock
         if clock.is_start_of_day:
-            self.events.emit(
-                Event(
-                    clock.tick,
-                    EventKind.DAY_STARTED,
-                    data={"day": clock.day_index + 1, "weekday": clock.weekday.value},
-                )
+            self.ctx.emit(
+                EventKind.DAY_STARTED, day=clock.day_index + 1, weekday=clock.weekday.value
             )
         for agent in self.agents.values():
-            update_agent(agent, self._ctx)
+            update_agent(agent, self.ctx, self.planner)
+        update_desks(self.ctx)
         clock.advance()
 
     def run_ticks(self, count: int) -> None:
@@ -112,30 +134,26 @@ class Simulation:
         return {place_id: place.name for place_id, place in self.world.places.items()}
 
     def is_visible(self, agent: Agent) -> bool:
-        """Visible sur la carte : dehors, ou dans un lieu extérieur (parc)."""
-        if agent.place_id is None:
-            return True
-        return self.world.places[agent.place_id].outdoor
+        """Visible à l'écran : on voit l'intérieur des maisons, sauf sous la douche."""
+        return agent.pose is not Pose.HIDDEN
 
     # ------------------------------------------------------------------ #
     # Création
     # ------------------------------------------------------------------ #
     def _create_agent(self, model: AgentModel) -> Agent:
-        """Chaque habitant commence la simulation endormi chez lui, un lundi à minuit."""
+        """Chaque habitant commence la simulation chez lui, un lundi à minuit."""
         home = self.world.places[model.home]
-        tile = home.entrances[0]
-        position = (float(tile[0]), float(tile[1]))
+        bed = next(iter(home.spots_for("sleep")), None)
+        tile = bed.tile if bed is not None else home.entrances[0]
         needs = Needs.initial(self.config.settings.needs, self.rng.stream(f"init:{model.id}"))
         agent = Agent(
             profile=model,
             needs=needs,
             tile=tile,
-            pos=position,
-            prev_pos=position,
-            state=AgentState.ACTIVE,
+            pos=(float(tile[0]), float(tile[1])),
+            prev_pos=(float(tile[0]), float(tile[1])),
             place_id=home.id,
-            activity=ActivityType.SLEEP,
-            activity_label="sommeil",
         )
+        place_at(agent, tile)
         home.occupants[agent.id] = None
         return agent
