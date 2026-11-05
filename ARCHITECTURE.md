@@ -213,6 +213,19 @@ minuit : importance cumulée ≥ 18 ─▶ réflexion (LLM, ou règles) ─▶ s
 - **Bus** (`sim/transit.py`) : 3 bus sur une boucle (voie sud vers l'est, voie nord vers l'ouest), 4 arrêts à deux quais. Le choix se fait au départ d'un trajet (`Ride` : vers le quai → attente → à bord → descendu) en comparant le temps de marche à l'estimation bus (marche jusqu'aux quais, attente moyenne = demi-intervalle, trajet, arrêts). À bord, l'habitant est caché et suit le bus ; la routine ne fait rien d'autre que ses besoins. Une attente de plus de 30 minutes fait renoncer.
 - **La carte s'agrandit vers l'est** (128 × 64) : troisième rue nord-sud et quartier des Mimosas. Les lieux existants gardent leurs coordonnées : les tests et les scénarios ne bougent pas.
 
+## 8 sexies. La vraie vie : l'IA décide, la ville impose (étape 6 bis)
+
+**Qui décide quoi.** Une IA par habitant (même modèle Ollama, mais personnalité, mémoire et situation propres) décide des INTENTIONS ; le moteur exécute les GESTES. Appeler l'IA à chaque geste ferait des milliers d'appels par journée simulée ; c'est aussi l'architecture de *Generative Agents* (plan du jour, puis réactions aux événements).
+
+- **Intentions** (`sim/life.py`, 21:00 pour le lendemain) : travailler ou non, achats (téléphone, casque, vêtements, livre), 0 à 2 activités (chercher un emploi, manche, vol, parc, salle de sport, café, repos) et une pensée. Sortie contrainte par un schéma JSON (listes `enum`), filtrée ensuite. Le planificateur les place dans la journée (`_intended`) ; un achat devenu trop cher est abandonné.
+- **Décisions urgentes** : faim critique, frigo vide, pas de quoi payer, en journée et hors du travail → l'IA choisit : manche, vol (si possible), tenir bon. La décision vaut 3 h.
+- **Argent** (`sim/economy.py`) : virements tracés entre habitants, employeurs (caisse des commerces ; bureaux et école payés par l'extérieur), État, bailleur, fournisseurs et clientèle extérieure (`external_revenue`). Salaire seulement en étant au travail ; caisse vide = salaire non versé.
+- **Factures** : loyer (locataire) ou 30 % du loyer en charges (propriétaire), chaque nuit, même à découvert.
+- **Expulsion** : 3 nuits à découvert (9 pour un propriétaire), l'huissier passe à 08:00. À la rue : domicile = parc (ouvert la nuit), `sleep_rough` sur un banc, pas de douche, pas de frigo. Relogement automatique dès 7 jours de loyer d'avance.
+- **Emploi** : moins d'une heure au travail un jour travaillé = absence ; 3 en 7 jours = licenciement (allocation chômage). `job_search` embauche s'il reste un poste (`jobs` dans `city.yaml`), plus difficilement à la rue ou sale.
+- **Vol** : vu par le personnel (50 %) = pris, rien obtenu, interdit d'entrée (`Access.FORBIDDEN`) ; vu par un client (35 %) = souvenir, affinité en chute, rumeur possible dans ses conversations.
+- **Entraide** : la manche (passants anonymes et habitants, selon leur gentillesse et l'affinité) ; en conversation, l'IA peut faire donner jusqu'à un plafond à un ami fauché (`help`).
+
 ## 9. Le planificateur
 
 `Planner` est un `Protocol` (typage structurel) : la routine appelle `plan_day()` sans savoir qui répond. `RuleBasedPlanner` construit une journée de blocs « lieu + activité + recette » en minutes absolues, sans trou par construction (`PlanBuilder`). Il tient compte :
@@ -264,6 +277,18 @@ Les YAML sont validés par Pydantic au démarrage (`extra="forbid"`, `frozen=Tru
 | Le « tofu » | Le séparateur du journal « ──── » s'affichait en carrés : Inter n'a pas les caractères de dessin de boîte. | Tirets cadratins. |
 | Les bulles du passé | À l'ouverture de la fenêtre, l'interface rejouait le journal… et affichait des répliques vieilles de trois heures. | Le rejeu alimente le journal, pas les bulles. |
 | Liens symboliques sous Windows | Un test créait des liens symboliques : il faut des droits d'administrateur sous Windows. | Inutile : le noyau ne lit que le XML de la carte. |
+
+## Pièges rencontrés pendant l'étape 6 bis
+
+| Piège | Parade |
+|---|---|
+| Noah à -59 €, faim à 0, commandait le plat du jour au café : la fringale ignorait l'argent | Les commerces trop chers sont écartés ; sans argent, l'IA décide (manche, vol, attendre). |
+| La faim faisait mendier au lieu d'aller travailler : pas de paie, spirale vers la rue | Pendant le travail, on tient bon (on sera payé le soir). |
+| Une décision « manche » toutes les 90 minutes, et la nuit sans dormir | Décision valable 3 h ; pas de décision urgente la nuit. |
+| L'achat du téléphone durait 30 min dans le plan, le trajet en bus aussi | Blocs d'achat d'une heure, trajet compris. |
+| Le jour de l'embauche comptait comme une absence | Le jour d'embauche est exclu. |
+| Le bureau interdisait de manger sa gamelle | La grande table des bureaux sert aussi à déjeuner (`eat` pour le personnel). |
+| Un script de modification interrompu en route : la moitié des docs n'avait pas suivi | Vérifier après coup (version, workflow) avant de pousser. |
 
 ## Pièges rencontrés pendant l'étape 6
 
