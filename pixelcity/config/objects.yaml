@@ -1,0 +1,90 @@
+# Ce qu'on peut faire avec chaque meuble : les « objets intelligents ».
+#
+# Principe hérité des Sims (2000) : l'intelligence est dans les objets, pas
+# dans les personnages. Un habitant qui a faim ne connaît pas la boulangerie ;
+# il cherche un objet qui propose le verbe `eat`, `take_food` ou `order`.
+#
+# - uses   : verbes utilisables, et à quel emplacement (front, front_center,
+#            behind_center, seat, head), avec la posture et le rôle requis
+# - grants : verbes donnés aux SIÈGES tournés vers l'objet (une chaise face à
+#            une table permet de manger, un canapé face à la télé de la regarder)
+# - container : stock de l'objet (-1 = illimité)
+# - sells  : ce que le comptoir vend (étape de recette `order`)
+#
+# Les meubles absents de ce fichier sont de la décoration : ils occupent leur
+# place au sol, rien de plus. L'apparence, la taille et l'emprise viennent des
+# manifest.json des assets.
+
+objects:
+  # --- Assises (pixel-agents) ------------------------------------------------
+  WOODEN_CHAIR: {label: chaise, uses: [{verbs: [sit], at: seat, pose: sit}]}
+  CUSHIONED_CHAIR: {label: fauteuil, uses: [{verbs: [sit, relax], at: seat, pose: sit}]}
+  CUSHIONED_BENCH: {label: tabouret, uses: [{verbs: [sit], at: seat, pose: sit}]}
+  WOODEN_BENCH: {label: tabouret, uses: [{verbs: [sit], at: seat, pose: sit}]}
+  SOFA: {label: canapé, uses: [{verbs: [sit, relax], at: seat, pose: sit}]}
+  PARK_BENCH: {label: banc, uses: [{verbs: [sit, relax], at: seat, pose: sit, facing: down}]}
+
+  # --- Surfaces : elles donnent des verbes aux sièges qui leur font face ------
+  DESK: {label: bureau, grants: [{verbs: [work_desk], range: 1}]}
+  PC: {label: ordinateur, grants: [{verbs: [work_computer], range: 2}]}
+  SMALL_TABLE: {label: table, grants: [{verbs: [eat, drink], range: 1}]}
+  TABLE_FRONT: {label: grande table, grants: [{verbs: [eat, drink], range: 1}]}
+  COFFEE_TABLE: {label: table basse, grants: [{verbs: [drink], range: 1}]}
+  TV: {label: télévision, grants: [{verbs: [watch_tv], range: 6, width: 1}]}
+
+  # --- Décor utilisable --------------------------------------------------------
+  BOOKSHELF: {label: étagère, uses: [{verbs: [browse_books], at: front}]}
+  DOUBLE_BOOKSHELF: {label: bibliothèque, uses: [{verbs: [browse_books], at: front}]}
+  WHITEBOARD:
+    label: tableau blanc
+    uses: [{verbs: [teach], at: front_center, facing: down, role: staff}]
+
+  # --- Cuisine -------------------------------------------------------------------
+  FRIDGE:
+    label: frigo
+    container: {items: {provisions: 6}, capacity: 16}
+    uses: [{verbs: [take_food, store_food], at: front, role: resident}]
+  STOVE: {label: cuisinière, uses: [{verbs: [cook], at: front}]}
+  KITCHEN_SINK: {label: évier, uses: [{verbs: [wash_dishes, wash_hands], at: front}]}
+  KITCHEN_COUNTER: {label: plan de travail, uses: [{verbs: [prepare_food, make_coffee], at: front}]}
+
+  # --- Chambre et salle de bain ------------------------------------------------
+  BED: {label: lit, uses: [{verbs: [sleep], at: head, pose: lie, role: resident}]}
+  WARDROBE: {label: armoire, uses: [{verbs: [get_dressed], at: front, role: resident}]}
+  SHOWER: {label: douche, uses: [{verbs: [shower], at: head, pose: hidden}]}
+  TOILET: {label: toilettes, uses: [{verbs: [use_toilet], at: head, pose: hidden}]}
+  WASHBASIN: {label: lavabo, uses: [{verbs: [wash_hands], at: front}]}
+
+  # --- Commerces ---------------------------------------------------------------------
+  BAKERY_COUNTER:
+    label: vitrine
+    sells: [bread]
+    container: {items: {bread: 18}, capacity: 40}
+    uses:
+      - {verbs: [serve, tidy], at: behind_center, facing: down, role: staff}
+      - {verbs: [order], at: front_center, role: customer, queue: 3}
+  BREAD_OVEN: {label: four à pain, uses: [{verbs: [bake], at: front, role: staff}]}
+  WORKBENCH: {label: pétrin, uses: [{verbs: [knead], at: front_center, role: staff}]}
+  CAFE_COUNTER:
+    label: comptoir
+    sells: [coffee, meal]
+    container: {items: {coffee: -1, meal: -1}, capacity: 1}
+    uses:
+      - {verbs: [serve, make_coffee, tidy], at: behind_center, facing: down, role: staff}
+      - {verbs: [order], at: front_center, role: customer, queue: 3}
+  CHECKOUT:
+    label: caisse
+    sells: [groceries]
+    # Sans caissière (pause, jour de repos), la caisse passe en libre-service.
+    self_service: true
+    container: {items: {groceries: -1}, capacity: 1}
+    uses:
+      - {verbs: [serve, man_checkout], at: behind_center, facing: down, role: staff}
+      - {verbs: [order], at: front_center, role: customer, queue: 3}
+  SHELF_PRODUCE: {label: rayon fruits et légumes, uses: [{verbs: [pick_goods, restock], at: front}]}
+  SHELF_GROCERY: {label: rayon épicerie, uses: [{verbs: [pick_goods, restock], at: front}]}
+  SHELF_DRINKS: {label: rayon boissons, uses: [{verbs: [pick_goods, restock], at: front}]}
+
+  # --- Salle de sport ------------------------------------------------------------------
+  TREADMILL: {label: tapis de course, uses: [{verbs: [exercise], at: head, pose: run, facing: up}]}
+  WEIGHT_BENCH: {label: banc de musculation, uses: [{verbs: [exercise], at: head, pose: sit, facing: up}]}

@@ -14,7 +14,7 @@ Deux réglages importants sur tous les modèles :
 
 from __future__ import annotations
 
-from typing import Annotated, Self
+from typing import Annotated, Literal, Self
 
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, model_validator
 
@@ -105,9 +105,10 @@ class Settings(StrictModel):
     seed: int = 42
     time: TimeSettings = TimeSettings()
     window: WindowSettings = WindowSettings()
-    walk_speed_tiles_per_minute: float = Field(2.0, gt=0)
+    walk_speed_tiles_per_minute: float = Field(3.0, gt=0)
     needs: dict[NeedKind, NeedSpec]
-    activity_effects: dict[ActivityType, NeedEffects]
+    # Effets permanents de la marche. Les effets des activités, eux, sont
+    # portés par les étapes des recettes (actions.yaml).
     walking_effects: NeedEffects = {}
 
     @model_validator(mode="after")
@@ -115,11 +116,6 @@ class Settings(StrictModel):
         missing_needs = set(NeedKind) - set(self.needs)
         if missing_needs:
             raise ValueError(f"besoins manquants dans `needs` : {sorted(missing_needs)}")
-        missing_effects = set(ActivityType) - set(self.activity_effects)
-        if missing_effects:
-            raise ValueError(
-                f"activités manquantes dans `activity_effects` : {sorted(missing_effects)}"
-            )
         if 60 % self.time.tick_seconds != 0:
             raise ValueError("`time.tick_seconds` doit diviser 60")
         return self
@@ -140,15 +136,9 @@ class PlaceModel(StrictModel):
     # Ce que seuls les employés du lieu peuvent faire, à toute heure
     # (le boulanger arrive avant l'ouverture de la boutique).
     staff_activities: tuple[ActivityType, ...] = ()
-    # Surcharges des effets par défaut de `settings.yaml` (ex. le sport fatigue).
-    effects: dict[ActivityType, NeedEffects] = {}
 
     @model_validator(mode="after")
     def _check_consistency(self) -> Self:
-        offered = set(self.activities) | set(self.staff_activities)
-        unknown = set(self.effects) - offered
-        if unknown:
-            raise ValueError(f"effets définis pour des activités non proposées : {sorted(unknown)}")
         if self.kind is PlaceKind.HOME and ActivityType.SLEEP not in self.activities:
             raise ValueError("un logement doit proposer l'activité `sleep`")
         if not self.days:
@@ -158,7 +148,7 @@ class PlaceModel(StrictModel):
 
 class CityConfig(StrictModel):
     # Nom du fichier de carte Tiled, dans `pixelcity/assets/maps/`.
-    map: str = "mvp.tmx"
+    map: str = "city.tmx"
     places: tuple[PlaceModel, ...]
 
     @model_validator(mode="after")
@@ -217,7 +207,10 @@ class AgentModel(StrictModel):
     age: int = Field(ge=0, le=120)
     job: str
     home: Slug
+    # Couleur d'accent dans l'interface, et apparence : l'un des 6 personnages
+    # de pixel-agents (char_0.png à char_5.png).
     color: str = Field(pattern=r"^#[0-9a-fA-F]{6}$")
+    sprite: int = Field(0, ge=0, le=5)
     sleep: SleepModel
     work: WorkModel | None = None
     personality: Personality
@@ -231,6 +224,154 @@ class AgentsConfig(StrictModel):
     def _check_unique_ids(self) -> Self:
         _ensure_unique([agent.id for agent in self.agents], "agent")
         return self
+
+
+# --------------------------------------------------------------------------- #
+# objects.yaml : ce qu'on peut faire avec chaque meuble
+# --------------------------------------------------------------------------- #
+SpotKind = Literal["front", "front_center", "behind_center", "seat", "head"]
+PoseName = Literal["stand", "sit", "lie", "run", "hidden"]
+FacingName = Literal["up", "down", "left", "right"]
+RoleName = Literal["any", "staff", "customer", "resident"]
+
+
+class UseModel(StrictModel):
+    """Une façon d'utiliser l'objet : des verbes, à un emplacement précis.
+
+    - front / front_center : debout devant l'objet (toutes les colonnes ou celle du milieu) ;
+    - behind_center : derrière (le vendeur derrière son comptoir) ;
+    - seat : sur l'objet lui-même (chaise, banc, canapé), une place par tuile ;
+    - head : la première tuile au sol (oreiller du lit, bac de douche...).
+    """
+
+    verbs: tuple[Slug, ...]
+    at: SpotKind = "front"
+    pose: PoseName = "stand"
+    facing: FacingName | None = None
+    role: RoleName = "any"
+    queue: int = Field(0, ge=0, le=6)  # places de file d'attente derrière le client
+
+
+class GrantModel(StrictModel):
+    """Verbes offerts aux sièges tournés vers cet objet (table → manger, télé → regarder)."""
+
+    verbs: tuple[Slug, ...]
+    range: int = Field(1, ge=1, le=8)
+    width: int = Field(0, ge=0, le=4)
+
+
+class ContainerModel(StrictModel):
+    """Stock d'un objet : article → quantité de départ (-1 = illimité)."""
+
+    items: dict[Slug, int]
+    capacity: int = Field(ge=1)
+
+
+class ObjectModel(StrictModel):
+    label: str
+    uses: tuple[UseModel, ...] = ()
+    grants: tuple[GrantModel, ...] = ()
+    container: ContainerModel | None = None
+    sells: tuple[Slug, ...] = ()
+    self_service: bool = False  # un client peut se servir seul si personne ne tient le comptoir
+
+
+class ObjectsConfig(StrictModel):
+    objects: dict[str, ObjectModel]
+
+
+# --------------------------------------------------------------------------- #
+# actions.yaml : les recettes d'actions
+# --------------------------------------------------------------------------- #
+AnimName = Literal["idle", "interact", "read", "eat", "talk"]
+
+# Verbes qui ne dépendent d'aucun objet.
+SPECIAL_VERBS = frozenset({"order", "stroll", "wait"})
+
+
+class StepModel(StrictModel):
+    verb: Slug
+    label: str
+    minutes: float | None = Field(None, gt=0)
+    until_end: bool = False  # jusqu'à la fin du bloc (dormir, travailler...)
+    anim: AnimName | None = None
+    effects: NeedEffects = {}  # points par heure pendant l'étape
+    take: dict[Slug, int] = {}  # stock de l'objet → inventaire (au début)
+    put: dict[Slug, int] = {}  # inventaire → stock de l'objet (à la fin)
+    consume: dict[Slug, int] = {}  # inventaire → disparaît (à la fin)
+    produce: dict[Slug, int] = {}  # → stock du commerce du lieu (à la fin)
+    make: dict[Slug, int] = {}  # → inventaire de l'habitant (à la fin) : la gamelle préparée
+    buy: Slug | None = None  # pour `order` : l'article acheté au comptoir
+    optional: bool = False  # si impossible, on passe à l'étape suivante
+    # Allume l'objet pendant l'étape. Un booléen plutôt que `state: on` :
+    # en YAML 1.1, `on` sans guillemets est lu comme… le booléen True.
+    switch_on: bool = False
+    distinct: bool = False  # un autre objet qu'à l'étape précédente
+
+    @model_validator(mode="after")
+    def _check_duration(self) -> Self:
+        if self.verb == "order":
+            if self.buy is None:
+                raise ValueError("une étape `order` doit préciser `buy`")
+        elif (self.minutes is None) == (not self.until_end):
+            raise ValueError(f"étape {self.verb!r} : donner `minutes` OU `until_end: true`")
+        return self
+
+
+class RecipeModel(StrictModel):
+    label: str
+    steps: tuple[StepModel, ...]
+    loop: bool = False  # répète les étapes jusqu'à la fin du bloc (les métiers)
+    serve: bool = False  # sert les clients en priorité (commerçants)
+
+    @model_validator(mode="after")
+    def _check_steps(self) -> Self:
+        if not self.steps:
+            raise ValueError("une recette doit avoir au moins une étape")
+        return self
+
+
+class ItemModel(StrictModel):
+    label: str
+    stores_as: dict[Slug, int] = {}  # sac de courses → 6 provisions dans le frigo
+
+
+class ActionsConfig(StrictModel):
+    items: dict[Slug, ItemModel]
+    recipes: dict[Slug, RecipeModel]
+    jobs: dict[PlaceKind, Slug]  # lieu de travail → recette du métier
+    fillers: dict[str, Slug]  # recette d'attente : "home", type de lieu ou "default"
+
+    @model_validator(mode="after")
+    def _check_references(self) -> Self:
+        for name in (*self.jobs.values(), *self.fillers.values()):
+            if name not in self.recipes:
+                raise ValueError(f"recette inconnue : {name!r}")
+        if "default" not in self.fillers:
+            raise ValueError("`fillers` doit avoir une entrée `default`")
+        for recipe_name, recipe in self.recipes.items():
+            for step in recipe.steps:
+                for item in (*step.take, *step.put, *step.consume, *step.produce, *step.make):
+                    if item not in self.items:
+                        raise ValueError(f"{recipe_name}.{step.verb} : article inconnu {item!r}")
+                if step.buy is not None and step.buy not in self.items:
+                    raise ValueError(f"{recipe_name}.{step.verb} : article inconnu {step.buy!r}")
+        return self
+
+
+# --------------------------------------------------------------------------- #
+# dialogues.yaml : les répliques scriptées (avant les LLM de l'étape 3)
+# --------------------------------------------------------------------------- #
+class DialoguesConfig(StrictModel):
+    greet: tuple[str, ...]
+    welcome: tuple[str, ...]
+    order: dict[Slug, tuple[str, ...]]
+    serve: dict[Slug, tuple[str, ...]]
+    thanks: tuple[str, ...]
+    disappointed: tuple[str, ...]
+    self_checkout: tuple[str, ...]
+    goodbye: tuple[str, ...]
+    out_of_stock: tuple[str, ...]
 
 
 def _ensure_unique(ids: list[str], what: str) -> None:

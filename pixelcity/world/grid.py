@@ -13,7 +13,7 @@ trottoirs et les passages piétons, sans qu'on code de règle spéciale.
 from __future__ import annotations
 
 from collections.abc import Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from pixelcity.sim.types import TilePos
 
@@ -31,10 +31,23 @@ class Grid:
     # Tableau « aplati » (ligne après ligne) plutôt qu'une liste de listes :
     # un seul accès mémoire par lecture, et index = y * width + x.
     costs: list[int]
+    # Sièges : tuiles infranchissables (une chaise, un lit) qu'on a pourtant
+    # le droit d'atteindre comme DESTINATION, ou de quitter comme DÉPART.
+    # Sans cette exception, A* ne trouverait jamais le chemin jusqu'à une chaise ;
+    # avec une simple tuile marchable, les habitants traverseraient les chaises.
+    seats: set[TilePos] = field(default_factory=set)
 
     def __post_init__(self) -> None:
         if len(self.costs) != self.width * self.height:
             raise ValueError("taille du tableau de coûts incohérente avec la grille")
+
+    def block(self, pos: TilePos) -> None:
+        x, y = pos
+        self.costs[y * self.width + x] = BLOCKED
+
+    def is_endpoint(self, pos: TilePos) -> bool:
+        """Peut servir de départ ou d'arrivée : marchable, ou siège."""
+        return self.is_walkable(pos) or pos in self.seats
 
     @classmethod
     def from_rows(cls, rows: list[str], legend: dict[str, int]) -> Grid:
