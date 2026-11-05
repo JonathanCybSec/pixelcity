@@ -158,6 +158,11 @@ class PlaceModel(StrictModel):
     # (le boulanger arrive avant l'ouverture de la boutique).
     staff_activities: tuple[ActivityType, ...] = ()
     rent: float = Field(0.0, ge=0)  # loyer par jour (logements), prélevé à minuit
+    # Étape 6 bis : un employeur. Postes à pourvoir, chiffre d'affaires des clients
+    # qu'on ne simule pas (passants, autres quartiers), en € par heure d'ouverture.
+    jobs: int = Field(0, ge=0)
+    external_revenue: float = Field(0.0, ge=0)
+    employer: str = ""  # nom de la structure qui paie (« Mairie », « Entreprise Horizon »)
 
     @model_validator(mode="after")
     def _check_consistency(self) -> Self:
@@ -250,6 +255,8 @@ class AgentModel(StrictModel):
     wage: float = Field(0.0, ge=0)
     allowance: float = Field(0.0, ge=0)
     money: float = 300.0
+    # Locataire : loyer au bailleur. Propriétaire : charges et taxe foncière (30 % du loyer).
+    housing: Literal["tenant", "owner"] = "tenant"
 
 
 class AgentsConfig(StrictModel):
@@ -342,6 +349,9 @@ class StepModel(StrictModel):
     # en YAML 1.1, `on` sans guillemets est lu comme… le booléen True.
     switch_on: bool = False
     distinct: bool = False  # un autre objet qu'à l'étape précédente
+    # Étape 6 bis : gestes aux conséquences gérées par `sim/life.py`.
+    special: Literal["steal", "beg", "job_search"] | None = None
+    steal: Slug | None = None  # l'article qu'on tente de voler
 
     @model_validator(mode="after")
     def _check_duration(self) -> Self:
@@ -369,6 +379,8 @@ class RecipeModel(StrictModel):
 class ItemModel(StrictModel):
     label: str
     price: float = Field(0.0, ge=0)  # prix de vente au comptoir, en euros
+    durable: bool = False  # un bien qu'on garde (téléphone, vêtements) plutôt qu'on consomme
+    edible: Slug | None = None  # recette pour le manger sur place (sandwich, biscuits)
     stores_as: dict[Slug, int] = {}  # sac de courses → 6 provisions dans le frigo
 
 

@@ -105,6 +105,13 @@ def _print_summary(sim: Simulation, report: HeadlessReport, out: TextIO) -> None
         f"({sim.economy.transit_revenue:.0f} €)",
         file=out,
     )
+    life = sim.life
+    homeless = sum(1 for agent in sim.agents.values() if agent.homeless)
+    print(
+        f"Vie : {life.evictions} expulsion(s), {homeless} à la rue, {life.firings} "
+        f"licenciement(s), {life.hires} embauche(s), {life.thefts} vol(s)",
+        file=out,
+    )
     for agent in sim.agents.values():
         needs = " · ".join(f"{kind.label} {agent.needs[kind]:.0f}" for kind in NeedKind)
         top = sorted(agent.minutes_by_recipe.items(), key=lambda item: -item[1])[:5]

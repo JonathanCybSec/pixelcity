@@ -41,6 +41,7 @@ def main() -> None:
     parser.add_argument("--select", default=None, help="habitant à sélectionner (et suivre)")
     parser.add_argument("--place", default=None, help="lieu à sélectionner")
     parser.add_argument("--debug", action="store_true", help="afficher la couche F3")
+    parser.add_argument("--scenario", default=None, help="scénario du studio (nom ou .yaml)")
     parser.add_argument(
         "--frames", type=int, default=12, help="images avant la capture (animations)"
     )
@@ -50,6 +51,10 @@ def main() -> None:
     args = parser.parse_args()
 
     config = load_config()
+    if args.scenario is not None:
+        from pixelcity.studio import scenario as studio
+
+        config = studio.apply(studio.find(args.scenario), config)
     window = config.settings.window.model_copy(
         update={"width": args.size[0], "height": args.size[1]}
     )

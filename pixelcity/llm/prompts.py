@@ -20,6 +20,10 @@ from pixelcity.llm.types import (
     ConversationKind,
     ConversationRequest,
     ConversationResult,
+    Decision,
+    DecisionRequest,
+    IntentionRequest,
+    Intentions,
     MeetProposal,
     Persona,
     ReflectionRequest,
@@ -64,9 +68,13 @@ SCHEMA: dict[str, Any] = {
 
 def schema_for(req: ConversationRequest) -> dict[str, Any]:
     """Le schéma JSON imposé au modèle ; avec un rendez-vous possible, la liste des lieux."""
-    if not req.meet_places:
+    if not req.meet_places and req.needy is None:
         return SCHEMA
     schema = {**SCHEMA, "properties": dict(SCHEMA["properties"])}
+    if req.needy is not None:
+        schema["properties"]["help"] = {"type": "number"}
+    if not req.meet_places:
+        return schema
     schema["properties"]["meet"] = {
         "type": "object",
         "properties": {
@@ -153,6 +161,13 @@ def build_user_prompt(req: ConversationRequest) -> str:
         count = "4 à 6"
     if req.occasion:
         lines.append(f"Occasion : {req.occasion}.")
+    if req.needy is not None:
+        needy, giver = (a, b) if req.needy == a.id else (b, a)
+        lines.append(
+            f"{needy.name} est dans le besoin ({needy.finances}). Il peut en parler ou avoir honte "
+            f"de le faire. {giver.name} peut, s'il le veut vraiment, lui donner ou lui prêter de "
+            f"l'argent : help = le montant donné (0 à {req.max_help:.0f} €), 0 sinon."
+        )
     if req.flirt_allowed:
         lines.append(
             "Ils se plaisent un peu : un flirt léger est possible s'il vient naturellement "
@@ -225,7 +240,13 @@ def parse_result(req: ConversationRequest, data: dict[str, Any], source: str) ->
         if place in allowed_places:
             hour = raw_meet.get("hour")
             meet = MeetProposal(place, str(hour) if hour else None)
-    return ConversationResult(tuple(lines), delta, flirt, summary, source, meet)
+    help_amount = 0.0
+    if req.needy is not None:
+        try:
+            help_amount = max(0.0, min(req.max_help, float(data.get("help", 0) or 0)))
+        except (TypeError, ValueError):
+            help_amount = 0.0
+    return ConversationResult(tuple(lines), delta, flirt, summary, source, meet, round(help_amount))
 
 
 def build_reflection_prompt(req: ReflectionRequest) -> str:
@@ -256,3 +277,107 @@ def parse_reflection(data: dict[str, Any]) -> tuple[str, ...]:
     if not insights:
         raise ValueError("pensées vides")
     return tuple(insights)
+
+
+# --------------------------------------------------------------------------- #
+# Étape 6 bis : intentions du lendemain et décisions urgentes
+# --------------------------------------------------------------------------- #
+LIFE_SYSTEM = (
+    "Tu es l'esprit d'un habitant d'une simulation de vie réaliste dans une petite ville "
+    "française. Tu décides à sa place, à la première personne, comme CETTE personne le ferait "
+    "vraiment : selon son caractère, ses valeurs, son argent, sa fatigue, ses envies et ses "
+    "souvenirs. Les conséquences sont réelles : une absence n'est pas payée, les factures "
+    "tombent chaque nuit, une dette mène à l'expulsion. Réponds uniquement avec le JSON demandé."
+)
+
+
+def intention_schema(req: IntentionRequest) -> dict[str, Any]:
+    return {
+        "type": "object",
+        "properties": {
+            "work": {"type": "boolean"},
+            "purchases": {
+                "type": "array",
+                "items": {"type": "string", "enum": [o.id for o in req.goods] or ["aucun"]},
+            },
+            "activities": {
+                "type": "array",
+                "items": {"type": "string", "enum": [o.id for o in req.activities]},
+            },
+            "thought": {"type": "string"},
+        },
+        "required": ["work", "purchases", "activities", "thought"],
+    }
+
+
+def build_intention_prompt(req: IntentionRequest) -> str:
+    p = req.persona
+    lines = [_persona_text(p), ""]
+    if req.memories:
+        lines.append("Souvenirs qui comptent :")
+        lines.extend(f"  - {m}" for m in req.memories)
+    lines.append(f"Demain, {req.day}.")
+    if req.work:
+        lines.append(
+            f"Travail prévu : {req.work}. work = true pour y aller, false pour ne pas y aller "
+            "(journée non payée ; 3 absences en 7 jours = licenciement)."
+        )
+    else:
+        lines.append("Pas de travail prévu demain (work sera ignoré).")
+    if req.goods:
+        lines.append(
+            "Achats possibles (purchases, rien si tu n'en as pas envie ou pas les moyens) :"
+        )
+        lines.extend(f"  - {o.id} : {o.label}" for o in req.goods)
+    lines.append("Activités possibles (activities, 0 à 2, dans l'ordre de préférence) :")
+    lines.extend(f"  - {o.id} : {o.label}" for o in req.activities)
+    lines.append(
+        "thought : ce que tu te dis ce soir en pensant à demain (une phrase, moins de 20 mots)."
+    )
+    return "\n".join(lines)
+
+
+def parse_intentions(req: IntentionRequest, data: dict[str, Any], source: str) -> Intentions:
+    goods = {o.id for o in req.goods}
+    activities = {o.id for o in req.activities}
+    raw_purchases = data.get("purchases")
+    raw_activities = data.get("activities")
+    if not isinstance(raw_purchases, list):
+        raw_purchases = []
+    if not isinstance(raw_activities, list):
+        raw_activities = []
+    purchases = tuple(dict.fromkeys(str(x) for x in raw_purchases if str(x) in goods))[:2]
+    chosen = tuple(dict.fromkeys(str(x) for x in raw_activities if str(x) in activities))[:2]
+    thought = clean_text(str(data.get("thought", "")))[:MAX_INSIGHT_CHARS] or None
+    return Intentions(bool(data.get("work", True)), purchases, chosen, thought, source)
+
+
+def decision_schema(req: DecisionRequest) -> dict[str, Any]:
+    return {
+        "type": "object",
+        "properties": {
+            "choice": {"type": "string", "enum": [o.id for o in req.options]},
+            "thought": {"type": "string"},
+        },
+        "required": ["choice", "thought"],
+    }
+
+
+def build_decision_prompt(req: DecisionRequest) -> str:
+    lines = [_persona_text(req.persona), ""]
+    if req.memories:
+        lines.append("Souvenirs qui comptent :")
+        lines.extend(f"  - {m}" for m in req.memories)
+    lines.append(f"Situation : {req.situation}")
+    lines.append("Que fais-tu maintenant ? Choix possibles :")
+    lines.extend(f"  - {o.id} : {o.label}" for o in req.options)
+    lines.append("thought : ce que tu te dis à cet instant (une phrase, moins de 20 mots).")
+    return "\n".join(lines)
+
+
+def parse_decision(req: DecisionRequest, data: dict[str, Any], source: str) -> Decision:
+    choice = str(data.get("choice", ""))
+    if choice not in {o.id for o in req.options}:
+        raise ValueError("choix inconnu")
+    thought = clean_text(str(data.get("thought", "")))[:MAX_INSIGHT_CHARS] or None
+    return Decision(choice, thought, source)

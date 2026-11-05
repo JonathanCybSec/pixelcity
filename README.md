@@ -16,6 +16,11 @@ Inspiré du papier *Generative Agents* (Stanford, 2023, la ville « Smallville �
 - **Des rendez-vous tenus** : « on se retrouve demain au parc vers 17 h 30 ? » s'inscrit dans le plan des deux habitants ; le lendemain, ils y vont. Un lapin se paie en affinité.
 - **Des relations** : chaque échange rapproche (ou non) deux habitants ; entre adultes ouverts à la romance qui s'apprécient, un flirt léger peut naître.
 - **De l'argent** : salaires au fil des heures travaillées, retraite ou allocation chaque nuit, loyer chaque nuit, prix au comptoir. Un habitant fauché renonce au café et au déjeuner dehors ; sans de quoi payer, il repart les mains vides (et s'en souvient). Chaque commerce cumule ses recettes.
+- **Une IA par habitant qui décide de sa vie** : chaque soir, elle choisit le programme du lendemain (aller travailler ou non, s'offrir un téléphone, chercher un emploi, faire la manche, voler, se détendre) ; dans un moment critique (une faim terrible sans un sou), elle décide sur le vif. Le moteur exécute les gestes. Sans Ollama, des règles de secours prennent le relais (pastille rouge « IA absente »).
+- **La vraie vie** : chaque euro vient de quelqu'un (employeur, État, clients) ; les factures tombent chaque nuit (loyer pour un locataire, charges pour un propriétaire), argent ou pas. Trois nuits de dette : expulsion, et l'on dort sur un banc du parc. Trois absences en sept jours : licenciement. Voler peut être vu (honte, interdit d'entrée, réputation) ; la manche rapporte quelques euros ; un ami peut aider pendant une conversation.
+
+![Noah, expulsé, dort sur un banc du parc](docs/sans-domicile.png)
+
 - **Une ligne de bus** : trois bus font l'aller-retour sur l'avenue, quatre arrêts. Un habitant prend le bus quand c'est plus rapide que de marcher (et qu'il a 1,50 € pour le ticket).
 
 ![Le bus passe devant la boulangerie](docs/bus.png)
@@ -34,6 +39,7 @@ Inspiré du papier *Generative Agents* (Stanford, 2023, la ville « Smallville �
 | 4 | Studio : créer les habitants de chaque simulation (LLM, idéologie, façon de parler, apparence) | **fait** |
 | 5 | Mémoire complète (flux, récupération, réflexion) et rendez-vous tenus | **fait** |
 | 6 | Économie (salaires, loyers, prix, recettes), quartier des Mimosas, ligne de bus | **fait** |
+| 6 bis | La vraie vie : l'IA de chaque habitant décide (travail, achats, manche, vol), factures obligatoires, propriétaire ou locataire, expulsion et vie à la rue, licenciement et embauche | **fait** |
 | 7 | Module Test de produit et exports | à venir |
 | 8 | Sauvegarde, optimisation, 50 à 100 habitants | à venir |
 | 9 | Exécutable Windows (.exe) avec PyInstaller | **fait** (Release GitHub, mise à jour à chaque push) |

@@ -34,7 +34,8 @@ def test_loyer_et_retraite_a_minuit(make_sim: Callable[..., Simulation]) -> None
     before_income, before_expenses = paul.income, paul.expenses
     run_to(sim, MONDAY + 1, 0.05)
     assert paul.income - before_income == 55  # retraite
-    assert paul.expenses - before_expenses >= 28  # loyer de la maison
+    # Propriétaire : pas de loyer, mais charges et taxe foncière (30 % de 28 €).
+    assert paul.expenses - before_expenses >= 8.4
 
 
 def test_les_commerces_encaissent(make_sim: Callable[..., Simulation]) -> None:

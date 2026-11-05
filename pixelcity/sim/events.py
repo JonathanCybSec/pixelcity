@@ -63,6 +63,15 @@ class EventKind(StrEnum):
     MONEY_LOW = "money_low"
     BUS_BOARDED = "bus_boarded"
     BUS_ALIGHTED = "bus_alighted"
+    # Étape 6 bis : la vraie vie.
+    INTENTION = "intention"  # ce que l'habitant prévoit pour demain (sa pensée)
+    DECISION = "decision"  # un choix sur le vif (mendier, voler...)
+    FIRED = "fired"
+    HIRED = "hired"
+    EVICTED = "evicted"
+    REHOUSED = "rehoused"
+    THEFT = "theft"
+    DONATION = "donation"
 
 
 @dataclass(frozen=True, slots=True)

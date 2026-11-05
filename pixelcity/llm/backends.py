@@ -22,11 +22,18 @@ from typing import Protocol
 from pixelcity.config.schemas import DialoguesConfig
 from pixelcity.llm.client import LlmError, OllamaClient
 from pixelcity.llm.prompts import (
+    LIFE_SYSTEM,
     REFLECTION_SCHEMA,
     REFLECTION_SYSTEM,
     SYSTEM,
+    build_decision_prompt,
+    build_intention_prompt,
     build_reflection_prompt,
     build_user_prompt,
+    decision_schema,
+    intention_schema,
+    parse_decision,
+    parse_intentions,
     parse_reflection,
     parse_result,
     schema_for,
@@ -37,6 +44,10 @@ from pixelcity.llm.types import (
     ConversationKind,
     ConversationRequest,
     ConversationResult,
+    Decision,
+    DecisionRequest,
+    IntentionRequest,
+    Intentions,
     MeetProposal,
     ReflectionRequest,
     ReflectionResult,
@@ -56,6 +67,10 @@ class DialogueBackend(Protocol):
 
     def submit(self, request: ConversationRequest) -> Pending[ConversationResult]: ...
     def submit_reflection(self, request: ReflectionRequest) -> Pending[ReflectionResult]: ...
+    def submit_intentions(self, request: IntentionRequest) -> Pending[Intentions | None]: ...
+    def submit_decision(self, request: DecisionRequest) -> Pending[Decision | None]: ...
+    @property
+    def live(self) -> bool: ...
     def status(self) -> str: ...
     def close(self) -> None: ...
 
@@ -96,6 +111,16 @@ class ScriptedBackend:
         # Pas de LLM : la simulation tirera ses réflexions de règles simples.
         return _Ready(ReflectionResult(()))
 
+    def submit_intentions(self, request: IntentionRequest) -> Pending[Intentions | None]:
+        return _Ready(None)  # None : les règles de secours décident
+
+    def submit_decision(self, request: DecisionRequest) -> Pending[Decision | None]:
+        return _Ready(None)
+
+    @property
+    def live(self) -> bool:
+        return False
+
     def generate(self, req: ConversationRequest) -> ConversationResult:
         rng = random.Random(req.seed)
         d = self.dialogues
@@ -131,7 +156,16 @@ class ScriptedBackend:
                 texts.append((b, "Avec plaisir, à demain !"))
                 meet = MeetProposal(place_id, hour)
             texts.append((b if texts[-1][0] == a else a, rng.choice(street.closer)))
-            return ConversationResult(tuple(ChatLine(s, t) for s, t in texts), None, meet=meet)
+            help_amount = 0.0
+            if req.needy is not None and req.affinity >= 15 and rng.random() < 0.5:
+                needy_is_a = req.needy == a
+                giver, needy = (b, a) if needy_is_a else (a, b)
+                help_amount = float(min(req.max_help, 10))
+                texts.insert(-1, (needy, "Je suis un peu à sec en ce moment, tu sais…"))
+                texts.insert(-1, (giver, f"Tiens, prends {help_amount:.0f} €, ça ira mieux."))
+            return ConversationResult(
+                tuple(ChatLine(s, t) for s, t in texts), None, meet=meet, help=help_amount
+            )
         return ConversationResult(tuple(ChatLine(s, t) for s, t in texts), None)
 
 
@@ -251,6 +285,63 @@ class OllamaBackend:
         except (LlmError, ValueError):
             self.failures += 1
             return ReflectionResult(())
+
+    @property
+    def live(self) -> bool:
+        """L'IA répond-elle vraiment ? (sinon : règles de secours, pastille orange)"""
+        return bool(self._available) and self.settings.model in (self._available or set())
+
+    def _life_model(self, persona_model: str | None) -> str | None:
+        available = self._available or set()
+        return next((m for m in (persona_model, self.settings.model) if m and m in available), None)
+
+    def _intend(self, req: IntentionRequest) -> Intentions | None:
+        model = self._life_model(req.persona.model)
+        if model is None:
+            return None
+        try:
+            data = self.client.chat_json(
+                model,
+                LIFE_SYSTEM,
+                build_intention_prompt(req),
+                intention_schema(req),
+                temperature=0.8,
+                seed=req.seed,
+            )
+            return parse_intentions(req, data, model)
+        except (LlmError, ValueError):
+            self.failures += 1
+            return None
+
+    def _decide(self, req: DecisionRequest) -> Decision | None:
+        model = self._life_model(req.persona.model)
+        if model is None:
+            return None
+        try:
+            data = self.client.chat_json(
+                model,
+                LIFE_SYSTEM,
+                build_decision_prompt(req),
+                decision_schema(req),
+                temperature=0.8,
+                seed=req.seed,
+            )
+            return parse_decision(req, data, model)
+        except (LlmError, ValueError):
+            self.failures += 1
+            return None
+
+    def submit_intentions(self, request: IntentionRequest) -> Pending[Intentions | None]:
+        pending = _LlmPending(self._pool.submit(self._intend, request))
+        if self.blocking:
+            pending.result()
+        return pending
+
+    def submit_decision(self, request: DecisionRequest) -> Pending[Decision | None]:
+        pending = _LlmPending(self._pool.submit(self._decide, request))
+        if self.blocking:
+            pending.result()
+        return pending
 
     def submit_reflection(self, request: ReflectionRequest) -> Pending[ReflectionResult]:
         pending = _LlmPending(self._pool.submit(self._reflect, request))

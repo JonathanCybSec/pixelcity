@@ -39,6 +39,9 @@ places:
     days: [mon, tue, wed, thu, fri, sat]
     activities: [eat]
     staff_activities: [work, toilet]
+    jobs: 2  # postes
+    employer: "Boulangerie du Coin"
+    external_revenue: 40  # € par heure : la clientèle qu'on ne simule pas
 
   - id: cafe
     name: Café des Arts
@@ -48,6 +51,9 @@ places:
     days: [tue, wed, thu, fri, sat, sun]
     activities: [eat, leisure, toilet]
     staff_activities: [work, eat]
+    jobs: 2  # postes
+    employer: "Café des Arts"
+    external_revenue: 45  # € par heure : la clientèle qu'on ne simule pas
 
   - id: supermarche
     name: Supermarché Fraîcheur
@@ -58,6 +64,9 @@ places:
     days: [mon, tue, wed, thu, fri, sat, sun]
     activities: [shop]
     staff_activities: [work, toilet]
+    jobs: 2  # postes
+    employer: "Supermarché Fraîcheur"
+    external_revenue: 140  # € par heure : la clientèle qu'on ne simule pas
 
   # --- Travail -------------------------------------------------------------
   - id: bureaux
@@ -66,7 +75,9 @@ places:
     capacity: 30
     hours: "07:00-20:00"
     days: [mon, tue, wed, thu, fri]
-    staff_activities: [work, toilet]
+    staff_activities: [work, eat, toilet]  # la grande table sert aussi à déjeuner
+    jobs: 4  # postes
+    employer: "Entreprise Horizon"
 
   - id: ecole
     name: École Jules-Ferry
@@ -75,6 +86,8 @@ places:
     hours: "07:30-18:30"
     days: [mon, tue, wed, thu, fri]
     staff_activities: [work, eat, toilet]
+    jobs: 3  # postes
+    employer: "Mairie (école publique)"
 
   # --- Loisirs -------------------------------------------------------------
   - id: salle_de_sport
@@ -88,5 +101,6 @@ places:
     name: Parc du Lac
     kind: park
     capacity: 100
-    hours: "07:00-21:30"
-    activities: [leisure]
+    # Étape 6 bis : un parc sans grilles, ouvert la nuit (on y dort quand on n'a plus de toit).
+    hours: always
+    activities: [leisure, relax, sleep]

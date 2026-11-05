@@ -23,6 +23,12 @@ items:
   coffee: {label: café, price: 2.5}
   meal: {label: plat du jour, price: 13}
   lunchbox: {label: gamelle}
+  snack: {label: paquet de biscuits, price: 3, edible: eat_snack}
+  # Biens durables (étape 6 bis) : on les garde, on en parle, on peut en rêver.
+  phone: {label: téléphone neuf, price: 420, durable: true}
+  headphones: {label: casque audio, price: 60, durable: true}
+  clothes: {label: vêtements neufs, price: 45, durable: true}
+  book: {label: roman, price: 14, durable: true}
 
 recipes:
   # --- Nuit et hygiène ---------------------------------------------------------
@@ -147,6 +153,59 @@ recipes:
     label: mange son plat
     steps:
       - {verb: eat, minutes: 20, label: mange son plat à emporter, consume: {meal: 1}, effects: {hunger: 200, fun: 6}, anim: eat}
+  eat_snack:
+    label: mange des biscuits
+    steps:
+      - {verb: wait, minutes: 8, label: mange des biscuits, consume: {snack: 1}, effects: {hunger: 300, fun: 2}}
+
+  # --- Étape 6 bis : la vraie vie (achats, emploi, rue) --------------------------------
+  buy_snack:
+    label: acheter de quoi manger
+    steps:
+      - {verb: order, buy: snack, label: achète des biscuits}
+      - {verb: wait, minutes: 8, label: mange des biscuits, consume: {snack: 1}, effects: {hunger: 300, fun: 2}}
+  buy_phone:
+    label: s'acheter un téléphone
+    steps:
+      - {verb: pick_goods, minutes: 10, label: compare les téléphones}
+      - {verb: order, buy: phone, label: passe en caisse}
+  buy_headphones:
+    label: s'acheter un casque
+    steps:
+      - {verb: pick_goods, minutes: 6, label: essaie des casques}
+      - {verb: order, buy: headphones, label: passe en caisse}
+  buy_clothes:
+    label: s'acheter des vêtements
+    steps:
+      - {verb: pick_goods, minutes: 8, label: choisit des vêtements}
+      - {verb: order, buy: clothes, label: passe en caisse}
+  buy_book:
+    label: s'acheter un livre
+    steps:
+      - {verb: pick_goods, minutes: 5, label: feuillette des romans}
+      - {verb: order, buy: book, label: passe en caisse}
+  job_search:
+    label: chercher un emploi
+    steps:
+      - {verb: wait, minutes: 45, label: épluche les annonces et postule, special: job_search, effects: {fun: -4}}
+  beg:
+    label: faire la manche
+    steps:
+      - {verb: wait, minutes: 90, label: fait la manche, special: beg, effects: {fun: -6}}
+  steal_food:
+    label: voler à manger
+    steps:
+      - {verb: pick_goods, minutes: 4, label: rôde dans les rayons, special: steal, steal: snack}
+      - {verb: wait, minutes: 8, label: mange en cachette, consume: {snack: 1}, optional: true, effects: {hunger: 300}}
+  rest_hungry:
+    label: tenir bon
+    steps:
+      - {verb: wait, minutes: 60, label: "attend, le ventre vide", effects: {fun: -8}}
+  sleep_rough:
+    label: dormir dehors
+    steps:
+      - {verb: sleep_rough, until_end: true, label: dort sur un banc, anim: read, effects: {energy: 10, hunger: 3, hygiene: -1, bladder: 11, fun: -2}}
+
   staff_lunch:
     label: pause déjeuner
     steps:

@@ -22,7 +22,7 @@ objects:
   CUSHIONED_BENCH: {label: tabouret, uses: [{verbs: [sit], at: seat, pose: sit}]}
   WOODEN_BENCH: {label: tabouret, uses: [{verbs: [sit], at: seat, pose: sit}]}
   SOFA: {label: canapé, uses: [{verbs: [sit, relax], at: seat, pose: sit}]}
-  PARK_BENCH: {label: banc, uses: [{verbs: [sit, relax], at: seat, pose: sit, facing: down}]}
+  PARK_BENCH: {label: banc, uses: [{verbs: [sit, relax, sleep_rough], at: seat, pose: sit, facing: down}]}
 
   # --- Surfaces : elles donnent des verbes aux sièges qui leur font face ------
   DESK: {label: bureau, grants: [{verbs: [work_desk], range: 1}]}
@@ -74,10 +74,10 @@ objects:
       - {verbs: [order], at: front_center, role: customer, queue: 3}
   CHECKOUT:
     label: caisse
-    sells: [groceries]
+    sells: [groceries, snack, phone, headphones, clothes, book]
     # Sans caissière (pause, jour de repos), la caisse passe en libre-service.
     self_service: true
-    container: {items: {groceries: -1}, capacity: 1}
+    container: {items: {groceries: -1, snack: -1, phone: -1, headphones: -1, clothes: -1, book: -1}, capacity: 1}
     uses:
       - {verbs: [serve, man_checkout], at: behind_center, facing: down, role: staff}
       - {verbs: [order], at: front_center, role: customer, queue: 3}

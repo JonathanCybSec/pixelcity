@@ -88,6 +88,26 @@ def describe(event: Event, agent_names: dict[str, str], place_names: dict[str, s
             if not data.get("before"):
                 return f"{who} et {other} font connaissance"
             return f"{who} et {other} : {_STAGE_TEXT.get(stage, stage)}"
+        case EventKind.INTENTION:
+            return f"{who} pense à demain : « {data.get('text')} »"
+        case EventKind.DECISION:
+            return f"{who} décide : « {data.get('text')} »"
+        case EventKind.FIRED:
+            return f"{who} est licencié(e) de {where}"
+        case EventKind.HIRED:
+            return f"{who} est embauché(e) : {data.get('job')} ({where})"
+        case EventKind.EVICTED:
+            return f"{who} est expulsé(e) de {where} et se retrouve à la rue"
+        case EventKind.REHOUSED:
+            return f"{who} retrouve un toit : {where}"
+        case EventKind.THEFT:
+            if data.get("caught"):
+                return f"{who} est pris(e) en train de voler à {where}"
+            seen = data.get("witnesses")
+            return f"{who} vole à {where}" + (" (quelqu'un l'a vu)" if seen else "")
+        case EventKind.DONATION:
+            other = _first(agent_names.get(str(data.get("other")), str(data.get("other"))))
+            return f"{who} donne {data.get('amount')} € à {other}"
         case EventKind.BUS_BOARDED:
             stop, to = data.get("stop"), data.get("to")
             return f"{who} monte dans le bus n°{data.get('bus')} à « {stop} » (→ {to})"

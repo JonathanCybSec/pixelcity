@@ -604,6 +604,16 @@ class StudioScreen:
                 color=TEXT_2,
             )
         y += 64
+        _section(shared, screen, "Logement : statut", (c.x, y))
+        statuses = ["tenant", "owner"]
+        picked_status = form.choice(
+            screen,
+            pygame.Rect(c.x, y + 18, c.width, 32),
+            ["Locataire (paie un loyer)", "Propriétaire (paie des charges)"],
+            statuses.index(draft.housing) if draft.housing in statuses else 0,
+        )
+        draft.housing = statuses[picked_status]
+        y += 64
         _section(shared, screen, "Économies de départ", (c.x, y))
         # Un montant hors liste (agents.yaml) reste proposé tel quel : ne rien écraser.
         amounts = sorted({*SAVINGS, draft.money})
