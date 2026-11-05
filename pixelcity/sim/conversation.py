@@ -25,11 +25,14 @@ from dataclasses import dataclass, field
 from itertools import combinations
 from typing import TYPE_CHECKING
 
-from pixelcity.agents.tasks import TaskKind
+from pixelcity.agents.tasks import Phase, TaskKind
 from pixelcity.llm.backends import DialogueBackend, Pending, ScriptedBackend
 from pixelcity.llm.types import ConversationKind, ConversationRequest, ConversationResult, Persona
+from pixelcity.memory.stream import MemoryKind
+from pixelcity.sim.appointments import MEET_PLACES, Appointment, parse_hour
 from pixelcity.sim.events import EventKind
-from pixelcity.sim.types import Anim, Facing, NeedKind, PlaceKind, Pose
+from pixelcity.sim.minds import MISSED_AFFINITY, memory_lines, remember, stamp
+from pixelcity.sim.types import MINUTES_PER_DAY, Anim, Facing, NeedKind, PlaceKind, Pose
 
 if TYPE_CHECKING:
     from pixelcity.agents.agent import Agent
@@ -48,6 +51,8 @@ STREET_AGENT_COOLDOWN_MINUTES = 45
 STREET_SOCIAL_PLACES = {PlaceKind.PARK, PlaceKind.CAFE, PlaceKind.GYM}
 MAX_PENDING_STREET = 1  # le GPU ne génère qu'une chose à la fois : pas de file interminable
 FLIRT_MIN_AFFINITY = 20.0
+MEET_MIN_AFFINITY = 10.0  # on ne donne rendez-vous qu'à quelqu'un qu'on apprécie un peu
+RECALL_COUNT = 3
 ADULT = 18
 
 NEED_PHRASES = {
@@ -78,7 +83,7 @@ class Conversation:
     place_id: str | None
     started_tick: int
     request: ConversationRequest
-    pending: Pending | None
+    pending: Pending[ConversationResult] | None
     lines: list[Spoken] = field(default_factory=list)
     result: ConversationResult | None = None
     ends_tick: int | None = None
@@ -118,6 +123,8 @@ class Conversations:
         *,
         item: str | None = None,
         in_stock: bool = True,
+        occasion: str | None = None,
+        appointment: Appointment | None = None,
     ) -> Conversation:
         relation = ctx.relations.get(a.id, b.id)
         if relation is None or relation.familiarity == 0:
@@ -127,6 +134,17 @@ class Conversations:
             if relation.flirts:
                 relation_text += f", ils ont déjà flirté {relation.flirts} fois"
         place = ctx.world.places.get(a.place_id) if a.place_id else None
+        place_name = place.name if place is not None else "la rue"
+        affinity = relation.affinity if relation is not None else 0.0
+        meet_places: tuple[tuple[str, str], ...] = ()
+        if (
+            appointment is None
+            and affinity >= MEET_MIN_AFFINITY
+            and ctx.appointments.between(a.id, b.id) is None
+        ):
+            meet_places = tuple(
+                (p.id, p.name) for p in ctx.world.places.values() if p.kind in MEET_PLACES
+            )
         request = ConversationRequest(
             kind=kind,
             a=persona(a),
@@ -139,6 +157,11 @@ class Conversations:
             item=item,
             in_stock=in_stock,
             seed=ctx.rngs.stream("conversation").randrange(1 << 30),
+            memories_a=_recall(ctx, a, b, place_name),
+            memories_b=_recall(ctx, b, a, place_name),
+            meet_places=meet_places,
+            affinity=affinity,
+            occasion=occasion,
         )
         conv = Conversation(
             uid=self._next_uid,
@@ -171,6 +194,7 @@ class Conversations:
         for conv in list(self.active.values()):
             self._poll(conv, ctx)
         if ctx.clock.tick % ctx.clock.ticks_per_minute == 0:
+            self._appointments(ctx)
             self._street_encounters(ctx)
 
     def _poll(self, conv: Conversation, ctx: SimContext) -> None:
@@ -231,6 +255,7 @@ class Conversations:
         )
         if result.summary:
             relation.summary = result.summary
+        self._remember(ctx, conv, a, b, result)
         if result.flirt:
             relation.flirts += 1
             ctx.emit(EventKind.FLIRT, a.id, conv.place_id, other=b.id)
@@ -250,6 +275,119 @@ class Conversations:
             source=result.source,
             delta=round(result.affinity_delta, 1) if result.affinity_delta is not None else None,
         )
+
+    def _remember(
+        self, ctx: SimContext, conv: Conversation, a: Agent, b: Agent, result: ConversationResult
+    ) -> None:
+        """Chacun garde un souvenir de l'échange ; un rendez-vous éventuel est inscrit."""
+        place_name = _place_name(ctx, conv.place_id)
+        gist = result.summary or "des banalités"
+        delta = abs(result.affinity_delta or 0.0)
+        importance = 3 + round(delta / 2) + (3 if result.flirt else 0)
+        for me, them in ((a, b), (b, a)):
+            text = f"J'ai discuté avec {them.first_name} ({place_name}) : {gist}"
+            if result.flirt:
+                text += " Il y avait un petit quelque chose entre nous."
+            remember(
+                ctx,
+                me,
+                MemoryKind.CONVERSATION,
+                text,
+                importance,
+                about=(them.id,),
+                place_id=conv.place_id,
+            )
+        if result.meet is not None:
+            self._book(ctx, a, b, result.meet.place_id, result.meet.hour)
+
+    def _book(self, ctx: SimContext, a: Agent, b: Agent, place_id: str, hour: str | None) -> None:
+        place = ctx.world.places.get(place_id)
+        if place is None:
+            return
+        day = ctx.clock.day_index + 1
+        start = ctx.appointments.feasible_start(a.profile, b.profile, place, day, parse_hour(hour))
+        if start is None:
+            for me, them in ((a, b), (b, a)):
+                remember(
+                    ctx,
+                    me,
+                    MemoryKind.OBSERVATION,
+                    f"{them.first_name} et moi voulions nous revoir demain, mais aucun "
+                    "horaire ne nous allait",
+                    3,
+                    about=(them.id,),
+                )
+            return
+        appointment = ctx.appointments.add(a.profile, b.profile, place_id, day, start)
+        when = stamp(ctx, day * MINUTES_PER_DAY + start)
+        for me, them in ((a, b), (b, a)):
+            remember(
+                ctx,
+                me,
+                MemoryKind.PLAN,
+                f"Rendez-vous avec {them.first_name} {when}, {place.name}",
+                5,
+                about=(them.id,),
+                place_id=place_id,
+            )
+        ctx.emit(
+            EventKind.APPOINTMENT_SET, a.id, place_id, other=b.id, when=when, uid=appointment.uid
+        )
+
+    def _appointments(self, ctx: SimContext) -> None:
+        """Rendez-vous du moment : on se retrouve, ou l'on constate une absence."""
+        now = ctx.now
+        for appointment in ctx.appointments.active(now):
+            if appointment.kept:
+                continue
+            a, b = ctx.agents.get(appointment.a), ctx.agents.get(appointment.b)
+            if a is None or b is None:
+                continue
+            here = [ag for ag in (a, b) if ag.place_id == appointment.place_id]
+            if len(here) < 2 or any(not _can_meet(ag) for ag in here):
+                continue
+            appointment.kept = True
+            appointment.closed = True
+            place_name = _place_name(ctx, appointment.place_id)
+            for me, them in ((a, b), (b, a)):
+                remember(
+                    ctx,
+                    me,
+                    MemoryKind.OBSERVATION,
+                    f"{them.first_name} est bien venu à notre rendez-vous ({place_name})",
+                    6,
+                    about=(them.id,),
+                    place_id=appointment.place_id,
+                )
+            ctx.emit(EventKind.APPOINTMENT_KEPT, a.id, appointment.place_id, other=b.id)
+            self.start(
+                ctx,
+                ConversationKind.STREET,
+                a,
+                b,
+                occasion=f"ils s'étaient donné rendez-vous ici, à {place_name}",
+                appointment=appointment,
+            )
+        for appointment in ctx.appointments.overdue(now):
+            appointment.closed = True
+            a, b = ctx.agents.get(appointment.a), ctx.agents.get(appointment.b)
+            if a is None or b is None:
+                continue
+            for me, them in ((a, b), (b, a)):
+                remember(
+                    ctx,
+                    me,
+                    MemoryKind.OBSERVATION,
+                    f"Le rendez-vous avec {them.first_name} n'a pas eu lieu : "
+                    f"{them.first_name} n'est pas venu, ou c'est moi qui ai manqué",
+                    5,
+                    about=(them.id,),
+                    place_id=appointment.place_id,
+                )
+            relation = ctx.relations.get(a.id, b.id)
+            if relation is not None:
+                relation.affinity = max(-100.0, relation.affinity + MISSED_AFFINITY)
+            ctx.emit(EventKind.APPOINTMENT_MISSED, a.id, appointment.place_id, other=b.id)
 
     def cancel(self, conv: Conversation, ctx: SimContext) -> None:
         """Conversation interrompue (le vendeur quitte son poste) : sans effet sur la relation."""
@@ -307,6 +445,35 @@ class Conversations:
                 self.start(ctx, ConversationKind.STREET, first, second)
                 if not self.backend.blocking:
                     return
+
+
+def _can_meet(agent: Agent) -> bool:
+    """Libre pour discuter : pas déjà en conversation, ni dans une file, ni pressé."""
+    if agent.conversation is not None or agent.pose in (Pose.LIE, Pose.HIDDEN):
+        return False
+    if any(task.kind in (TaskKind.URGENT, TaskKind.SERVE) for task in agent.tasks):
+        return False
+    task = agent.task
+    return task is None or task.phase in (Phase.PERFORM, Phase.SEEK, Phase.GOTO, Phase.TRAVEL)
+
+
+def _recall(ctx: SimContext, me: Agent, them: Agent, place_name: str) -> tuple[str, ...]:
+    """Les souvenirs qui reviennent à `me` en voyant `them` à cet endroit."""
+    memories = me.memory.retrieve(
+        ctx.clock.tick,
+        query=f"{them.name} {place_name} {me.status_text()}",
+        about=(them.id,),
+        place_id=me.place_id,
+        count=RECALL_COUNT,
+    )
+    return memory_lines(ctx, memories)
+
+
+def _place_name(ctx: SimContext, place_id: str | None) -> str:
+    if place_id is None:
+        return "dans la rue"
+    place = ctx.world.places.get(place_id)
+    return place.name if place is not None else place_id
 
 
 def _available(agent: Agent, ctx: SimContext, convs: Conversations, now: int) -> bool:

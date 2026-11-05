@@ -11,7 +11,9 @@ from typing import TYPE_CHECKING
 
 import pygame
 
+from pixelcity.agents.agent import Agent
 from pixelcity.agents.tasks import Phase
+from pixelcity.memory.stream import Memory, MemoryKind
 from pixelcity.sim.events import EventKind
 from pixelcity.sim.types import NeedKind, PlaceKind, Pose, format_hhmm
 from pixelcity.ui.glass import rounded
@@ -217,6 +219,13 @@ def cast_panel(f: UiFrame) -> pygame.Rect:
 # --------------------------------------------------------------------------- #
 # Fiche d'un habitant (à droite)
 # --------------------------------------------------------------------------- #
+def _shown_memories(agent: Agent) -> list[Memory]:
+    stream = agent.memory
+    thought = stream.recent(1, (MemoryKind.REFLECTION,))
+    recent = [m for m in stream.recent(3) if m not in thought][: 3 - len(thought)]
+    return thought + recent
+
+
 def agent_card(f: UiFrame, agent_id: str, slide: float) -> pygame.Rect:
     sim = f.sim
     agent = sim.agents[agent_id]
@@ -358,13 +367,35 @@ def _agent_card_content(
             y += 18 + 22 * len(relations)
         y += 8
 
+    # --- Mémoire : la dernière pensée, puis les souvenirs récents ------------------------------
+    memories = _shown_memories(agent)
+    if memories:
+        if not measure:
+            y = _section(f, "En tête", x0, y)
+            for memory in memories:
+                reflection = memory.kind is MemoryKind.REFLECTION
+                text = f"« {memory.text} »" if reflection else memory.text
+                label(
+                    screen,
+                    texts,
+                    text,
+                    (x0, y),
+                    size=12,
+                    color=ACCENT if reflection else TEXT_2,
+                    max_width=inner,
+                )
+                y += 20
+        else:
+            y += 18 + 20 * len(memories)
+        y += 8
+
     # --- Plan du jour ------------------------------------------------------------------------
     plan = agent.plan
     if plan is not None:
         blocks = plan.blocks
         current = agent.block_index
-        start = max(0, min(current - 2, len(blocks) - 7))
-        shown = blocks[start : start + 7]
+        start = max(0, min(current - 2, len(blocks) - 5))
+        shown = blocks[start : start + 5]
         if not measure:
             y = _section(f, "Aujourd'hui", x0, y)
             for offset, block in enumerate(shown):

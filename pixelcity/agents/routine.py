@@ -110,6 +110,7 @@ def _ensure_plan(agent: Agent, ctx: SimContext, planner: Planner) -> None:
             weekday=Weekday.from_index(day),
             rng=ctx.rngs.stream(f"planner:{agent.id}"),
             walk_speed=ctx.config.settings.walk_speed_tiles_per_minute,
+            appointments=tuple(ctx.appointments.for_agent(agent.id, day)),
         )
         agent.plan = planner.plan_day(agent, day, planning)
         agent.block_index = 0

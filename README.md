@@ -12,6 +12,8 @@ Inspiré du papier *Generative Agents* (Stanford, 2023, la ville « Smallville �
 - **Des besoins comblés par des gestes visibles** : pour dîner, un habitant sort des ingrédients du frigo (s'il en reste), épluche les légumes, allume la cuisinière, s'assoit à table, puis fait la vaisselle. Douche le matin, toilettes, courses rangées dans le frigo en rentrant, gamelle préparée quand il n'y a rien d'ouvert à midi...
 - **Des commerces qui vivent** : on fait la queue, le boulanger lâche son pétrin pour servir, client et vendeur échangent quelques répliques (bulles), la vitrine peut se vider. Sans caissière, la caisse du supermarché passe en libre-service.
 - **Des conversations écrites par une IA locale** (Ollama) : au comptoir, et en ville quand deux habitants se croisent. Chacun parle selon son caractère et sa façon de parler, évoque ce qu'il fait ou ce dont il a besoin, et se souvient de leur dernière discussion. Sans Ollama, des répliques scriptées prennent le relais.
+- **Une mémoire** : chaque habitant garde ses souvenirs (conversations, déboires, rencontres), s'en sert pour parler (« la dernière fois, tu m'avais dit… ») et, la nuit, en tire des pensées (« je me sens proche de Léa »). La fiche d'un habitant montre ce qu'il a « en tête ».
+- **Des rendez-vous tenus** : « on se retrouve demain au parc vers 17 h 30 ? » s'inscrit dans le plan des deux habitants ; le lendemain, ils y vont. Un lapin se paie en affinité.
 - **Des relations** : chaque échange rapproche (ou non) deux habitants ; entre adultes ouverts à la romance qui s'apprécient, un flirt léger peut naître.
 - **Le jour et la nuit** : crépuscule orangé, nuit bleutée, fenêtres éclairées là où quelqu'un est réveillé, lampadaires.
 
@@ -25,7 +27,7 @@ Inspiré du papier *Generative Agents* (Stanford, 2023, la ville « Smallville �
 | 2 | Ville visible : assets pixel-agents, intérieurs, besoins par gestes concrets, commerces (file, service, stock), interface translucide | **fait** |
 | 3 | Conversations par LLM local (Ollama) : en ville et au comptoir, affinités, flirt (entre adultes uniquement) | **fait** |
 | 4 | Studio : créer les habitants de chaque simulation (LLM, idéologie, façon de parler, apparence) | **fait** |
-| 5 | Mémoire complète (flux, récupération, réflexion) | à venir |
+| 5 | Mémoire complète (flux, récupération, réflexion) et rendez-vous tenus | **fait** |
 | 6 | Économie, plus de bâtiments, transports | à venir |
 | 7 | Module Test de produit et exports | à venir |
 | 8 | Sauvegarde, optimisation, 50 à 100 habitants | à venir |

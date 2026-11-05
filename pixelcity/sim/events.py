@@ -54,6 +54,11 @@ class EventKind(StrEnum):
     CHAT_DONE = "chat_done"
     FLIRT = "flirt"
     CHAT_THINKING = "chat_thinking"  # le LLM réfléchit : bulle « … »
+    # Étape 5 : mémoire et rendez-vous.
+    REFLECTION = "reflection"  # une pensée tirée des souvenirs
+    APPOINTMENT_SET = "appointment_set"
+    APPOINTMENT_KEPT = "appointment_kept"
+    APPOINTMENT_MISSED = "appointment_missed"
 
 
 @dataclass(frozen=True, slots=True)

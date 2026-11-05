@@ -188,6 +188,22 @@ réponse validée (prompts.parse_result) → bulles espacées selon leur longueu
 - **Lanceur** (`engine/launcher.py`) : une machine à états menu → studio → partie → menu, dans une seule fenêtre. `GameApp` accepte une fenêtre existante et renvoie « menu » ou « quit ».
 - **Robustesse face aux villes imprévues** : un commerce sans employé reste fermé (`Simulation._close_unstaffed_shops`) ; une place occupée (toilettes, plan de travail) fait patienter jusqu'à 12 minutes au lieu d'échouer en boucle ; un service qui finit tard déplace les courses au matin.
 
+## 8 quater. Mémoire et rendez-vous (étape 5)
+
+```
+événements ──▶ Minds.on_event ──▶ MemoryStream (1 par habitant, 300 souvenirs max)
+conversations ─▶ souvenir + éventuel rendez-vous                │
+                                                     retrieve() │ récence + importance + pertinence
+                                                                ▼
+                                        prompt de la conversation suivante (« ce qu'il a en tête »)
+minuit : importance cumulée ≥ 18 ─▶ réflexion (LLM, ou règles) ─▶ souvenir de type REFLECTION
+```
+
+- **Flux** (`memory/stream.py`) : souvenirs datés, à la première personne, importance 1 à 10, personnes concernées. Oubli du moins utile au-delà de 300, jamais une réflexion ni un rendez-vous.
+- **Récupération** : score = récence (×0,99 par heure depuis le dernier rappel) + importance + pertinence, chacun normalisé entre 0 et 1 (comme Generative Agents). La pertinence utilise les personnes concernées, le lieu et des mots-clés plutôt que des embeddings : instantané, reproductible, aucun second modèle à installer.
+- **Réflexion** (`sim/minds.py`) : la nuit, le LLM généralise les souvenirs marquants en 1 à 3 pensées ; sans LLM, des règles (affinités, lapins, ruptures de stock).
+- **Rendez-vous** (`sim/appointments.py`) : le LLM peut les proposer (schéma JSON avec la liste des lieux autorisés en `enum`) ; la simulation choisit le créneau réellement possible le lendemain (14:00-18:00, hors travail, lieu ouvert) et le planificateur l'insère comme bloc ponctuel. Tenu : conversation avec l'occasion dans le prompt. Manqué : souvenir et affinité -4.
+
 ## 9. Le planificateur
 
 `Planner` est un `Protocol` (typage structurel) : la routine appelle `plan_day()` sans savoir qui répond. `RuleBasedPlanner` construit une journée de blocs « lieu + activité + recette » en minutes absolues, sans trou par construction (`PlanBuilder`). Il tient compte :
@@ -240,6 +256,15 @@ Les YAML sont validés par Pydantic au démarrage (`extra="forbid"`, `frozen=Tru
 | Les bulles du passé | À l'ouverture de la fenêtre, l'interface rejouait le journal… et affichait des répliques vieilles de trois heures. | Le rejeu alimente le journal, pas les bulles. |
 | Liens symboliques sous Windows | Un test créait des liens symboliques : il faut des droits d'administrateur sous Windows. | Inutile : le noyau ne lit que le XML de la carte. |
 
+## Pièges rencontrés pendant l'étape 5
+
+| Piège | Parade |
+|---|---|
+| Rendez-vous à 14:00 avec le boulanger… qui fait la sieste après son service | Marge de 2 h 30 après la fin du travail. |
+| Détour par la maison juste avant le rendez-vous (« avant son rendez-vous ») | On part directement, quitte à être en avance. |
+| Aucune réflexion sans LLM : les règles n'en produisaient qu'à partir d'une affinité de 20 | Règles plus variées (« je croise souvent… », repas). |
+| Le café ferme à 15:00 | Le créneau est vérifié contre les horaires du lieu. |
+
 ## Pièges rencontrés pendant l'étape 4
 
 | Piège | Parade |
@@ -280,5 +305,5 @@ Les YAML sont validés par Pydantic au démarrage (`extra="forbid"`, `frozen=Tru
 - Tous les habitants sont mis à jour à chaque tick. Avec 100 habitants, une journée simulée prendrait ~6 s en headless ; une mise à jour événementielle viendra avec l'optimisation (un habitant qui dort n'a rien à calculer).
 - Les habitants se traversent (pas de collisions entre eux), comme dans Smallville et pixel-agents.
 - Une seule caisse, un seul vendeur par commerce : pendant la pause déjeuner du barista, les clients attendent puis renoncent.
-- L'affinité est symétrique. Les conversations ne changent pas encore les plans (« on se retrouve au café demain » n'est pas suivi d'effet) : ce sera pour l'étape 5, avec la mémoire.
+- L'affinité est symétrique. Les rendez-vous ne se prennent que pour le lendemain, l'après-midi. Les réflexions n'influencent pas encore le choix des loisirs.
 - Sous Windows avec un écran haute densité, la fenêtre peut être mise à l'échelle par le système (image légèrement floue).

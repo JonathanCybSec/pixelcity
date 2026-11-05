@@ -45,6 +45,13 @@ class ConversationRequest:
     item: str | None = None  # au comptoir : ce que le client vient acheter
     in_stock: bool = True
     seed: int = 0  # pour que le script de repli reste reproductible
+    # Étape 5 : les souvenirs que chacun a en tête au moment de parler.
+    memories_a: tuple[str, ...] = ()
+    memories_b: tuple[str, ...] = ()
+    # Lieux où ils peuvent convenir de se revoir demain : (id, nom). Vide : pas de rendez-vous.
+    meet_places: tuple[tuple[str, str], ...] = ()
+    affinity: float = 0.0
+    occasion: str | None = None  # « ils avaient rendez-vous ici »
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,9 +61,31 @@ class ChatLine:
 
 
 @dataclass(frozen=True, slots=True)
+class MeetProposal:
+    place_id: str
+    hour: str | None  # « 17:30 », validé ensuite par la simulation
+
+
+@dataclass(frozen=True, slots=True)
 class ConversationResult:
     lines: tuple[ChatLine, ...]
     affinity_delta: float | None  # None : laisser la simulation l'estimer
     flirt: bool = False
     summary: str | None = None
     source: str = "script"  # « script », ou le nom du modèle
+    meet: MeetProposal | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ReflectionRequest:
+    """La nuit, un habitant repense à ses souvenirs marquants."""
+
+    persona: Persona
+    memories: tuple[str, ...]
+    seed: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class ReflectionResult:
+    insights: tuple[str, ...]  # vide : la simulation utilisera ses règles
+    source: str = "script"
