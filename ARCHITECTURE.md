@@ -226,6 +226,16 @@ minuit : importance cumulée ≥ 18 ─▶ réflexion (LLM, ou règles) ─▶ s
 - **Vol** : vu par le personnel (50 %) = pris, rien obtenu, interdit d'entrée (`Access.FORBIDDEN`) ; vu par un client (35 %) = souvenir, affinité en chute, rumeur possible dans ses conversations.
 - **Entraide** : la manche (passants anonymes et habitants, selon leur gentillesse et l'affinité) ; en conversation, l'IA peut faire donner jusqu'à un plafond à un ami fauché (`help`).
 
+## 8 septies. Libre arbitre (étape 6 ter)
+
+- **Le menu de la ville** (`sim/options.py`) : une seule fonction construit les options d'une journée (id, description avec prix et horaires, lieu, recette, durée, fenêtre d'ouverture), pour le prompt ET pour le planificateur : ils ne peuvent pas diverger. Biens durables : `goods_options`, dans le magasin qui les vend.
+- **La journée de l'IA** (`Intentions.schedule`) : JSON contraint `{pour_contre: [{choix, pour, contre}], plan: [{heure, activite∈enum}], budget_casino, pensee}`. `RuleBasedPlanner._ai_day` la traduit en blocs : le corps garde ses exigences (sommeil, toilette, dîner), chaque activité est recalée dans ses horaires, le travail n'existe que si l'IA l'a mis au programme.
+- **Replanification** : gros gain ou perte au casino (≥ 60 €), et plus largement tout événement marquant → `request_replan` (2 fois par jour au plus, seulement avec une vraie IA). Le plan repart de l'heure courante.
+- **Le jeu** (`Life._gamble`) : mise ≈ 3 % de l'argent ; ×2 (21,6 %), ×5 (5 %), ×50 (0,4 %) → l'espérance de gain est de 0,88 € par euro misé : la maison gagne toujours. On s'arrête si le budget est atteint… sauf « pour se refaire » (probabilité croissante avec l'envie et l'émotivité, décroissante avec la rigueur).
+- **Envies** (`agent.cravings`) : renforcement intermittent à la Skinner — un gain augmente fortement l'envie, une perte poursuivie l'augmente un peu, une perte acceptée la baisse ; -0,04 par nuit. Les envies sont données à l'IA en langage naturel.
+- **Aller voir quelqu'un** : `see_<id>` envoie l'habitant, en client, là où l'autre travaille (café, bar, casino, boulangerie) : la conversation au comptoir fait le reste (flirt compris, si les règles l'autorisent).
+- **Interface** : panneaux et sections repliables (`_fold`, état `UiState.collapsed`) ; la liste des habitants se resserre pour ne jamais passer sous le journal ; la fiche est découpée au bord de l'écran ; pas d'infobulle de la ville sous un panneau.
+
 ## 9. Le planificateur
 
 `Planner` est un `Protocol` (typage structurel) : la routine appelle `plan_day()` sans savoir qui répond. `RuleBasedPlanner` construit une journée de blocs « lieu + activité + recette » en minutes absolues, sans trou par construction (`PlanBuilder`). Il tient compte :
@@ -277,6 +287,16 @@ Les YAML sont validés par Pydantic au démarrage (`extra="forbid"`, `frozen=Tru
 | Le « tofu » | Le séparateur du journal « ──── » s'affichait en carrés : Inter n'a pas les caractères de dessin de boîte. | Tirets cadratins. |
 | Les bulles du passé | À l'ouverture de la fenêtre, l'interface rejouait le journal… et affichait des répliques vieilles de trois heures. | Le rejeu alimente le journal, pas les bulles. |
 | Liens symboliques sous Windows | Un test créait des liens symboliques : il faut des droits d'administrateur sous Windows. | Inutile : le noyau ne lit que le XML de la carte. |
+
+## Pièges rencontrés pendant l'étape 6 ter
+
+| Piège | Parade |
+|---|---|
+| Les courses partaient à la boutique de vêtements (elle aussi propose `shop`) | Les courses ne vont qu'au supermarché ; un achat va au magasin qui VEND l'article. |
+| Bar et magasins fermés : aucun employé dans la ville d'origine | Zoé (barmaid) et Théo (vendeur hi-tech) ; la boutique a un terminal en libre-service. |
+| Les tables du bar bouchaient la porte des toilettes | La vérification « chaque place est atteignable » au chargement l'a signalé. |
+| Avec 12 habitants, la liste passait sous le journal (et l'infobulle d'une maison s'affichait par-dessus) | Lignes resserrées, panneaux repliables, pas d'infobulle sous un panneau. |
+| La décision du soir écrasait le programme imposé par un test | Le test fixe le programme après 21:00. |
 
 ## Pièges rencontrés pendant l'étape 6 bis
 

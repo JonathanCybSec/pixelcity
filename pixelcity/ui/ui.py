@@ -50,6 +50,8 @@ class UiState:
     visible: bool = True
     debug: bool = False
     slide: float = 0.0
+    # Sections et panneaux repliés (« menus déroulants ») : on clique leur titre.
+    collapsed: set[str] = field(default_factory=lambda: {"sac", "relations"})
 
 
 @dataclass(slots=True)
@@ -155,7 +157,8 @@ class Ui:
                 self.panel_rects.append(panels.journal_panel(frame))
             if screen.get_width() >= 1100:
                 self.panel_rects.append(panels.help_hint(frame))
-        overlays.tooltip(frame)
+        if not self.is_over_ui(frame.mouse):  # pas d'infobulle de la ville sous un panneau
+            overlays.tooltip(frame)
         if self.state.debug:
             overlays.debug_layer(frame)
 
@@ -177,6 +180,9 @@ class Ui:
             self.clear_selection()
         elif action == "follow":
             state.follow = not state.follow
+        elif action.startswith("fold:"):
+            key = action.removeprefix("fold:")
+            state.collapsed.symmetric_difference_update({key})
         elif action.startswith("journal:"):
             state.journal_mode = action.removeprefix("journal:")
         return action

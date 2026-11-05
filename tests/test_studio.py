@@ -32,6 +32,8 @@ def test_les_habitants_d_origine_sont_valides(config: GameConfig) -> None:
         "sofia_rossi",
         "hugo_lambert",
         "paul_girard",
+        "zoe_moreau",
+        "theo_leroy",
     ]
     sofia = next(m for m in models if m.name == "Sofia Rossi")
     assert sofia.job == "Caissière"  # l'intitulé personnalisé est conservé

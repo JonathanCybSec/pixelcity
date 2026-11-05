@@ -105,6 +105,10 @@ def describe(event: Event, agent_names: dict[str, str], place_names: dict[str, s
                 return f"{who} est pris(e) en train de voler à {where}"
             seen = data.get("witnesses")
             return f"{who} vole à {where}" + (" (quelqu'un l'a vu)" if seen else "")
+        case EventKind.GAMBLED:
+            net = int(str(data.get("net", 0)))
+            verb = "gagne" if net >= 0 else "perd"
+            return f"{who} {verb} {abs(net)} € au casino ({data.get('rounds')} parties)"
         case EventKind.DONATION:
             other = _first(agent_names.get(str(data.get("other")), str(data.get("other"))))
             return f"{who} donne {data.get('amount')} € à {other}"

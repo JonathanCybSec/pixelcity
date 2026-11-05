@@ -4,7 +4,7 @@ name: Exécutable Windows
 on:
   push:
     tags: ["v*"]
-    branches: [etape-2-ville-visible, etape-3-conversations, etape-4-studio, etape-5-memoire, etape-6-economie-transports, etape-6b-vraie-vie]
+    branches: [etape-2-ville-visible, etape-3-conversations, etape-4-studio, etape-5-memoire, etape-6-economie-transports, etape-6b-vraie-vie, etape-6c-libre-arbitre]
     paths: [".github/workflows/release.yml", "packaging/**", "pixelcity/**"]
   workflow_dispatch:
 

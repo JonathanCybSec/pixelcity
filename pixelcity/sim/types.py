@@ -129,6 +129,11 @@ class PlaceKind(StrEnum):
     SUPERMARKET = "supermarket"
     GYM = "gym"
     PARK = "park"
+    # Étape 6 ter : plus de tentations en ville.
+    CASINO = "casino"
+    BAR = "bar"
+    BOUTIQUE = "boutique"
+    ELECTRONICS = "electronics"
 
     @property
     def is_outdoor(self) -> bool:

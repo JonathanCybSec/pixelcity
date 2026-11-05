@@ -1,0 +1,14 @@
+{
+  "id": "ROULETTE_TABLE",
+  "name": "Table de roulette",
+  "category": "casino",
+  "canPlaceOnWalls": false,
+  "canPlaceOnSurfaces": false,
+  "backgroundTiles": 1,
+  "type": "asset",
+  "file": "ROULETTE_TABLE.png",
+  "width": 48,
+  "height": 32,
+  "footprintW": 3,
+  "footprintH": 2
+}

@@ -116,7 +116,7 @@ def test_une_semaine_de_souvenirs_de_pensees_et_de_rendez_vous(
                 sim.agents[a].profile, sim.agents[b].profile, 0, random.Random(0)
             )
             relation.affinity = 35.0
-    sim.run_days(5)
+    sim.run_days(7)
     for agent in sim.agents.values():
         kinds = {m.kind for m in agent.memory.memories}
         assert MemoryKind.CONVERSATION in kinds, agent.id

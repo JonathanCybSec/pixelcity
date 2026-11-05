@@ -61,6 +61,8 @@ HIRE_CHANCE, HIRE_CHANCE_HARD = 0.45, 0.2
 STAFF_NOTICE, WITNESS_NOTICE = 0.5, 0.35
 BEG_RADIUS = 6
 DECISION_RETRY_MINUTES = 3
+MAX_REPLANS = 2
+CRAVING_DECAY = 0.04  # par nuit : une envie qu'on ne nourrit pas s'éteint doucement
 
 ACTIVITIES: dict[str, str] = {
     "job_search": "chercher un emploi (annonces, candidatures)",
@@ -73,7 +75,15 @@ ACTIVITIES: dict[str, str] = {
     "cafe": "prendre un café au Café des Arts (2,50 €)",
     "rest": "rester tranquille chez soi",
 }
-GOODS = ("phone", "headphones", "clothes", "book")
+GOODS = ("phone", "headphones", "clothes", "shoes", "book", "tv", "console")
+
+
+@dataclass(slots=True)
+class _Session:
+    budget: float
+    net: float = 0.0
+    rounds: int = 0
+    chased: bool = False
 
 
 @dataclass(slots=True)
@@ -91,6 +101,7 @@ class Life:
         # Dernière décision urgente, réutilisée 3 h : on ne se repose pas la question
         # toutes les 90 minutes (et c'est autant d'appels à l'IA en moins).
         self._recent: dict[str, tuple[str, int]] = {}
+        self._sessions: dict[str, _Session] = {}
         self.thefts = 0
         self.evictions = 0
         self.hires = 0
@@ -119,41 +130,52 @@ class Life:
                 self._check_rehousing(ctx, agent)
         self._poll_intentions(ctx)
         self._begging(ctx)
+        for agent_id in list(self._sessions):
+            agent = ctx.agents[agent_id]
+            if agent.task is None or agent.task.recipe_id != "casino":
+                self._end_session(ctx, agent)
 
     # ------------------------------------------------------------------ #
     # Intentions du lendemain
     # ------------------------------------------------------------------ #
-    def _ask_intentions(self, ctx: SimContext, agent: Agent) -> None:
+    def _ask_intentions(
+        self, ctx: SimContext, agent: Agent, *, day: int | None = None, replan: bool = False
+    ) -> None:
+        """Demande à l'IA de l'habitant sa journée (demain, ou la fin d'aujourd'hui)."""
         from pixelcity.sim.conversation import persona
+        from pixelcity.sim.options import day_options, goods_options
 
-        day = ctx.clock.day_index + 1
+        day = ctx.clock.day_index + 1 if day is None else day
         weekday = Weekday.from_index(day)
-        work = agent.profile.work
-        shift = work.schedule.get(weekday) if work is not None else None
-        work_text = None
-        if shift is not None and work is not None:
-            place = ctx.world.places[work.place]
-            work_text = (
-                f"{place.name}, {_hhmm(shift[0])}-{_hhmm(shift[1])}, {agent.profile.wage:g} €/h"
-            )
-        items = ctx.config.actions.items
-        goods = tuple(
-            Option(g, f"{items[g].label} ({items[g].price:.0f} €)")
-            for g in GOODS
-            if g in items and g not in agent.possessions
-        )
-        activities = tuple(Option(a, label) for a, label in ACTIVITIES.items())
+        others = list(ctx.agents.values())
+        options = day_options(ctx.world, ctx.config, agent, others, day)
+        goods = goods_options(ctx.world, ctx.config, agent, day)
+        if replan:
+            now = ctx.clock.minute_of_day
+            options = {k: o for k, o in options.items() if o.window[1] > now + 30}
+            goods = {k: o for k, o in goods.items() if o.window[1] > now + 30}
+        work = options.get("work")
         memories = agent.memory.retrieve(
-            ctx.clock.tick, query="argent travail logement envie demain", count=5
+            ctx.clock.tick, query="argent travail envie plaisir casino demain", count=6
         )
+        sleep = agent.profile.sleep
+        wake = sleep.wake if work is not None or sleep.weekend_wake is None else sleep.weekend_wake
+        label = weekday.label.lower()
+        if replan:
+            clock_text = _hhmm(ctx.clock.minute_of_day)
+            label = f"aujourd'hui {label}, il est {clock_text} : la suite de ta journée"
         request = IntentionRequest(
             persona(agent, Economy.situation(agent, ctx)),
             memory_lines(ctx, memories),
-            weekday.label.lower(),
-            work_text,
-            goods,
-            activities,
+            label,
+            work.label if work is not None else None,
+            tuple(Option(o.id, o.label) for o in goods.values()),
+            tuple(Option(o.id, o.label) for o in options.values() if o.id != "work")
+            + ((Option("work", work.label),) if work is not None else ()),
             seed=ctx.rngs.stream("intentions").randrange(1 << 30),
+            cravings=cravings_text(agent),
+            wake=_hhmm(wake),
+            bed=_hhmm(sleep.bed),
         )
         self._intentions[agent.id] = (day, self.backend.submit_intentions(request))
 
@@ -163,8 +185,15 @@ class Life:
                 continue
             del self._intentions[agent_id]
             agent = ctx.agents[agent_id]
-            intentions = pending.result() or self.rule_intentions(ctx, agent)
+            answer = pending.result()
+            if answer is None and day == ctx.clock.day_index:
+                continue  # replanification sans IA : on garde le plan en cours
+            intentions = answer or self.rule_intentions(ctx, agent)
             agent.intentions[day] = intentions
+            if intentions.pros_cons:
+                agent.deliberation = intentions.pros_cons
+            if day == ctx.clock.day_index:
+                agent.plan = None  # la suite de la journée est replanifiée tout de suite
             if intentions.thought:
                 ctx.emit(
                     EventKind.INTENTION,
@@ -200,6 +229,15 @@ class Life:
                 if good not in agent.possessions and affordable and rng.random() < 0.15:
                     purchases.append(good)
                     break
+        craving = agent.cravings.get("casino", 0.0)
+        if craving > 0 and agent.money > 20 and rng.random() < craving and len(activities) < 2:
+            activities.append("casino")  # l'envie l'emporte
+        if len(activities) < 2 and "casino" not in activities and agent.money > 100:
+            risky = (1 - p.conscientiousness) * 0.15 + p.neuroticism * 0.05
+            if rng.random() < risky:
+                activities.append("casino")  # « juste pour voir »
+        if len(activities) < 2 and p.extraversion > 0.6 and rng.random() < 0.2:
+            activities.append("bar")
         if agent.needs[NeedKind.FUN] < 50 and len(activities) < 2:
             activities.append(rng.choice(("park", "gym")))
         thought = None
@@ -318,6 +356,8 @@ class Life:
             if len(recent) >= FIRING_ABSENCES:
                 self.fire(ctx, agent)
         agent.worked_minutes = 0.0
+        for name, value in list(agent.cravings.items()):
+            agent.cravings[name] = max(0.0, value - CRAVING_DECAY)
         for old in [d for d in agent.intentions if d < yesterday]:
             del agent.intentions[old]
         agent.arrears_days = agent.arrears_days + 1 if agent.money < 0 else 0
@@ -443,7 +483,9 @@ class Life:
     # Gestes spéciaux (appelés à la fin d'une étape de recette)
     # ------------------------------------------------------------------ #
     def on_special(self, ctx: SimContext, agent: Agent, task: Task, step: StepModel) -> None:
-        if step.special == "steal" and step.steal is not None:
+        if step.special == "gamble":
+            self._gamble(ctx, agent, task)
+        elif step.special == "steal" and step.steal is not None:
             self._steal(ctx, agent, task.place_id, step.steal)
         elif step.special == "job_search":
             self._job_search(ctx, agent)
@@ -524,6 +566,109 @@ class Life:
         remember(ctx, agent, MemoryKind.OBSERVATION, text, 4)
 
     # ------------------------------------------------------------------ #
+    # Le jeu : une machine à renforcer les envies
+    # ------------------------------------------------------------------ #
+    def _gamble(self, ctx: SimContext, agent: Agent, task: Task) -> None:
+        """Une partie. Le hasard décide ; l'envie, le budget et le caractère font continuer."""
+        rng = ctx.rngs.stream("casino")
+        session = self._sessions.get(agent.id)
+        if session is None:
+            intentions = agent.intentions.get(ctx.clock.day_index)
+            budget = intentions.casino_budget if intentions and intentions.casino_budget else 0.0
+            if budget <= 0:  # pas de budget décidé : une part de ce qu'on a, selon l'envie
+                craving = agent.cravings.get("casino", 0.0)
+                budget = max(10.0, agent.money * (0.05 + 0.15 * craving))
+            session = self._sessions[agent.id] = _Session(min(budget, max(agent.money, 0.0)))
+        bet = float(min(max(5, round(agent.money * 0.03)), 50, max(agent.money, 0)))
+        if bet < 1:
+            task.ends_at = ctx.now  # plus un sou : on s'en va
+            self._end_session(ctx, agent)
+            return
+        ctx.economy.transfer(ctx, agent.id, "casino", bet)
+        roll = rng.random()
+        multiplier = 50 if roll < 0.004 else 5 if roll < 0.054 else 2 if roll < 0.27 else 0
+        win = bet * multiplier
+        if win:
+            ctx.economy.transfer(ctx, "casino", agent.id, win)
+        session.net += win - bet
+        session.rounds += 1
+        if multiplier >= 5:
+            from pixelcity.sim.service import say
+
+            say(ctx, agent.id, "JACKPOT !!!" if multiplier == 50 else f"Gagné ! +{win:.0f} €")
+        # Continuer ? Les pertes poussent à « se refaire », les gains à rejouer.
+        p = agent.profile.personality
+        craving = agent.cravings.get("casino", 0.0)
+        lost = -session.net
+        stop = agent.money < 5
+        if not stop and lost >= session.budget:
+            chase = 0.15 + 0.5 * craving + 0.3 * p.neuroticism - 0.4 * p.conscientiousness
+            stop = rng.random() > chase  # « encore une, pour me refaire »… ou pas
+            if not stop:
+                session.chased = True
+        if not stop and session.net > 2 * bet and p.conscientiousness > 0.6:
+            stop = rng.random() < 0.5  # un prudent empoche ses gains
+        if stop:
+            task.ends_at = ctx.now
+            self._end_session(ctx, agent)
+
+    def _end_session(self, ctx: SimContext, agent: Agent) -> None:
+        session = self._sessions.pop(agent.id, None)
+        if session is None or session.rounds == 0:
+            return
+        net = session.net
+        agent.casino_last = net
+        agent.casino_total += net
+        craving = agent.cravings.get("casino", 0.0)
+        # Renforcement intermittent (Skinner) : un gain marque bien plus qu'une perte.
+        if net > 0:
+            craving += 0.15 + min(0.3, net / 400)
+        elif session.chased:
+            craving += 0.08  # l'envie de se refaire
+        else:
+            craving -= 0.05
+        agent.cravings["casino"] = max(0.0, min(1.0, craving))
+        if net >= 0:
+            text = f"J'ai gagné {net:.0f} € au casino ! J'ai hâte d'y retourner"
+        elif session.chased:
+            text = (
+                f"J'ai perdu {-net:.0f} € au casino, j'ai voulu me refaire… "
+                "il faut que je me rattrape"
+            )
+        else:
+            text = f"J'ai perdu {-net:.0f} € au casino"
+        remember(
+            ctx,
+            agent,
+            MemoryKind.OBSERVATION,
+            text,
+            min(10, 5 + int(abs(net) / 60)),
+            place_id="casino",
+        )
+        ctx.emit(EventKind.GAMBLED, agent.id, "casino", net=round(net), rounds=session.rounds)
+        if abs(net) >= 60:
+            self.request_replan(
+                ctx,
+                agent,
+                f"vient de {'gagner' if net > 0 else 'perdre'} {abs(net):.0f} € au casino",
+            )
+
+    # ------------------------------------------------------------------ #
+    # Replanifier quand la journée bascule (gros gain, licenciement...)
+    # ------------------------------------------------------------------ #
+    def request_replan(self, ctx: SimContext, agent: Agent, reason: str) -> None:
+        if not self.backend.live:
+            return  # sans IA, le plan des règles continue
+        day = ctx.clock.day_index
+        if agent.replans.get(day, 0) >= MAX_REPLANS or ctx.clock.minute_of_day > 21 * 60:
+            return
+        if agent.id in self._intentions:
+            return
+        agent.replans[day] = agent.replans.get(day, 0) + 1
+        remember(ctx, agent, MemoryKind.OBSERVATION, f"Je repense à ma journée : {reason}", 4)
+        self._ask_intentions(ctx, agent, day=day, replan=True)
+
+    # ------------------------------------------------------------------ #
     # La manche
     # ------------------------------------------------------------------ #
     def _begging(self, ctx: SimContext) -> None:
@@ -595,3 +740,16 @@ class Life:
 
 def _hhmm(minute: int) -> str:
     return f"{minute // 60:02d}:{minute % 60:02d}"
+
+
+def cravings_text(agent: Agent) -> tuple[str, ...]:
+    """Les envies, dites comme on se les dit (pour le prompt du soir)."""
+    lines: list[str] = []
+    casino = agent.cravings.get("casino", 0.0)
+    if casino >= 0.15:
+        strength = "irrésistible" if casino > 0.7 else "forte" if casino > 0.4 else "une petite"
+        last = agent.casino_last
+        detail = f"dernière séance : {last:+.0f} €, au total {agent.casino_total:+.0f} €"
+        motive = "pour te refaire" if agent.casino_total < 0 else "parce que ça peut payer gros"
+        lines.append(f"{strength} envie de retourner au casino, {motive} ({detail})")
+    return tuple(lines)

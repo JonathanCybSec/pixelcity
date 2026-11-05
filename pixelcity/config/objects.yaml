@@ -74,13 +74,44 @@ objects:
       - {verbs: [order], at: front_center, role: customer, queue: 3}
   CHECKOUT:
     label: caisse
-    sells: [groceries, snack, phone, headphones, clothes, book]
+    sells: [groceries, snack, book]
     # Sans caissière (pause, jour de repos), la caisse passe en libre-service.
     self_service: true
-    container: {items: {groceries: -1, snack: -1, phone: -1, headphones: -1, clothes: -1, book: -1}, capacity: 1}
+    container: {items: {groceries: -1, snack: -1, book: -1}, capacity: 1}
     uses:
       - {verbs: [serve, man_checkout], at: behind_center, facing: down, role: staff}
       - {verbs: [order], at: front_center, role: customer, queue: 3}
+  # --- Étape 6 ter : casino, bar, boutiques -----------------------------------------
+  SLOT_MACHINE: {label: machine à sous, uses: [{verbs: [gamble], at: front, facing: up}]}
+  ROULETTE_TABLE:
+    label: table de roulette
+    uses:
+      - {verbs: [deal], at: behind_center, facing: down, role: staff}
+      - {verbs: [gamble], at: front, facing: up, role: customer}
+  BAR_COUNTER:
+    label: comptoir du bar
+    sells: [beer, cocktail]
+    container: {items: {beer: -1, cocktail: -1}, capacity: 1}
+    uses:
+      - {verbs: [serve, tidy], at: behind_center, facing: down, role: staff}
+      - {verbs: [order], at: front_center, role: customer, queue: 3}
+  BOUTIQUE_COUNTER:
+    label: caisse de la boutique
+    sells: [clothes, shoes]
+    self_service: true  # sans vendeur : un terminal de paiement
+    container: {items: {clothes: -1, shoes: -1}, capacity: 1}
+    uses:
+      - {verbs: [serve, tidy], at: behind_center, facing: down, role: staff}
+      - {verbs: [order], at: front_center, role: customer, queue: 3}
+  TECH_COUNTER:
+    label: caisse du magasin hi-tech
+    sells: [phone, tv, console, headphones]
+    container: {items: {phone: -1, tv: -1, console: -1, headphones: -1}, capacity: 1}
+    uses:
+      - {verbs: [serve, tidy], at: behind_center, facing: down, role: staff}
+      - {verbs: [order], at: front_center, role: customer, queue: 3}
+  CLOTHES_RACK: {label: portant, uses: [{verbs: [pick_goods, restock], at: front}]}
+  TECH_SHELF: {label: rayon hi-tech, uses: [{verbs: [pick_goods, restock], at: front}]}
   SHELF_PRODUCE: {label: rayon fruits et légumes, uses: [{verbs: [pick_goods, restock], at: front}]}
   SHELF_GROCERY: {label: rayon épicerie, uses: [{verbs: [pick_goods, restock], at: front}]}
   SHELF_DRINKS: {label: rayon boissons, uses: [{verbs: [pick_goods, restock], at: front}]}

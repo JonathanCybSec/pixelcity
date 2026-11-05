@@ -72,6 +72,7 @@ class EventKind(StrEnum):
     REHOUSED = "rehoused"
     THEFT = "theft"
     DONATION = "donation"
+    GAMBLED = "gambled"  # fin d'une séance de casino (gain ou perte)
 
 
 @dataclass(frozen=True, slots=True)

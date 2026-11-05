@@ -84,6 +84,13 @@ ITEMS: tuple[Item, ...] = (
     Item("PARK_BENCH", "Banc public", "outdoor", 32, 16, (2, 1)),
     Item("LAMPPOST", "Lampadaire", "outdoor", 16, 32, (1, 2), 1),
     Item("WINDOW", "Fenêtre", "wall", 16, 32, (1, 2), on_walls=True),
+    Item("SLOT_MACHINE", "Machine à sous", "casino", 16, 32, (1, 2), 1, states=True),
+    Item("ROULETTE_TABLE", "Table de roulette", "casino", 48, 32, (3, 2), 1),
+    Item("BOUTIQUE_COUNTER", "Caisse de la boutique", "shop", 32, 32, (2, 2), 1),
+    Item("TECH_COUNTER", "Caisse du magasin hi-tech", "shop", 32, 32, (2, 2), 1),
+    Item("BAR_COUNTER", "Comptoir du bar", "shop", 32, 32, (2, 2), 1),
+    Item("CLOTHES_RACK", "Portant de vêtements", "shop", 32, 32, (2, 2), 1),
+    Item("TECH_SHELF", "Rayon téléviseurs et téléphones", "shop", 32, 32, (2, 2), 1),
 )
 
 
