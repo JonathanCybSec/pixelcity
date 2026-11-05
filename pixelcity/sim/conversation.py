@@ -23,7 +23,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from itertools import combinations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from pixelcity.agents.tasks import Phase, TaskKind
 from pixelcity.llm.backends import DialogueBackend, Pending, ScriptedBackend
@@ -167,6 +167,7 @@ class Conversations:
             meet_places=meet_places,
             affinity=affinity,
             occasion=occasion,
+            **_help_offer(ctx, a, b, affinity),
         )
         conv = Conversation(
             uid=self._next_uid,
@@ -304,6 +305,31 @@ class Conversations:
             )
         if result.meet is not None:
             self._book(ctx, a, b, result.meet.place_id, result.meet.hour)
+        needy_id = conv.request.needy
+        if result.help and needy_id is not None:
+            needy, giver = (a, b) if needy_id == a.id else (b, a)
+            ctx.economy.give(ctx, giver, needy, result.help)
+            remember(
+                ctx,
+                giver,
+                MemoryKind.OBSERVATION,
+                f"J'ai donné {result.help:.0f} € à {needy.first_name}, qui était dans le besoin",
+                6,
+                about=(needy.id,),
+                place_id=conv.place_id,
+            )
+            remember(
+                ctx,
+                needy,
+                MemoryKind.OBSERVATION,
+                f"{giver.first_name} m'a aidé : {result.help:.0f} €, je ne l'oublierai pas",
+                7,
+                about=(giver.id,),
+                place_id=conv.place_id,
+            )
+            ctx.emit(
+                EventKind.DONATION, giver.id, conv.place_id, other=needy.id, amount=result.help
+            )
 
     def _book(self, ctx: SimContext, a: Agent, b: Agent, place_id: str, hour: str | None) -> None:
         place = ctx.world.places.get(place_id)
@@ -450,6 +476,16 @@ class Conversations:
                 self.start(ctx, ConversationKind.STREET, first, second)
                 if not self.backend.blocking:
                     return
+
+
+def _help_offer(ctx: SimContext, a: Agent, b: Agent, affinity: float) -> dict[str, Any]:
+    """L'un des deux est fauché, l'autre non : l'aide devient possible (jamais imposée)."""
+    tight = ctx.config.settings.economy.tight_budget
+    for needy, giver in ((a, b), (b, a)):
+        if needy.money < tight and giver.money > 3 * tight:
+            generosity = 0.1 + 0.2 * max(0.0, affinity) / 100
+            return {"needy": needy.id, "max_help": round(min(100.0, giver.money * generosity))}
+    return {}
 
 
 def _can_meet(agent: Agent) -> bool:

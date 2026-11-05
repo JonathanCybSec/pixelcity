@@ -62,6 +62,7 @@ class AgentDraft:
     llm_model: str = ""  # vide : modèle par défaut du .env
     romance: bool = False
     money: float = 300.0  # économies de départ
+    housing: str = "tenant"  # « tenant » (locataire) ou « owner » (propriétaire)
 
     def to_model(self, agent_id: str) -> AgentModel:
         """Convertit en fiche validée par Pydantic (lève ValidationError si incohérent)."""
@@ -84,6 +85,7 @@ class AgentDraft:
             "wage": job.wage,
             "allowance": job.allowance,
             "money": self.money,
+            "housing": self.housing if self.housing in ("tenant", "owner") else "tenant",
         }
         if job.place is not None:
             data["work"] = {
@@ -112,6 +114,7 @@ class AgentDraft:
             llm_model=model.llm_model or "",
             romance=model.romance,
             money=model.money,
+            housing=model.housing,
         )
 
 

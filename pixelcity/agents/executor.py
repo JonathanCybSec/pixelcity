@@ -159,12 +159,15 @@ def access_for(
     agent: Agent, place: Place, task: Task, ctx: SimContext, *, entering: bool
 ) -> Access:
     clock = ctx.clock
+    staff = agent.work_place_id == place.id
+    if place.id in agent.banned and not staff:
+        return Access.FORBIDDEN  # pris à voler : on n'y remet plus les pieds
     return place.check_access(
         task.activity,
         clock.weekday.number,
         clock.minute_of_day,
         resident=agent.profile.home == place.id,
-        staff=agent.work_place_id == place.id,
+        staff=staff,
         entering=entering,
     )
 
@@ -547,6 +550,8 @@ def _anim_for(step: StepModel, pose: Pose) -> Anim:
 
 
 def _finish_step(agent: Agent, task: Task, step: StepModel, ctx: SimContext) -> None:
+    if step.special is not None:
+        ctx.life.on_special(ctx, agent, task, step)
     spot = task.spot
     items = ctx.config.actions.items
     if step.put and spot is not None and spot.furniture.container is not None:

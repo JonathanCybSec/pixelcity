@@ -125,4 +125,4 @@ def test_une_semaine_de_souvenirs_de_pensees_et_de_rendez_vous(
     kept = events_of(sim, EventKind.APPOINTMENT_KEPT)
     assert booked and kept
     plan = sim.agents[str(kept[0].agent_id)].memory.recent(50, (MemoryKind.PLAN,))
-    assert plan and "Rendez-vous" in plan[0].text
+    assert any("Rendez-vous" in m.text for m in plan)

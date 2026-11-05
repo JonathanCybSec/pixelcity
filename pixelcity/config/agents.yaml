@@ -6,6 +6,7 @@
 #
 # speech_style: façon de parler, donnée au LLM
 # romance     : ouvert au flirt (entre adultes, sans autre partenaire)
+# housing     : tenant (locataire, loyer) ou owner (propriétaire, charges)
 # wage        : salaire horaire (€) ; allowance : revenu par jour (retraite...) ; money : économies
 # llm_model   : modèle Ollama propre à l'habitant (sinon OLLAMA_MODEL du .env)
 # sprite      : apparence, l'un des 6 personnages de pixel-agents (0 à 5)
@@ -29,6 +30,7 @@ agents:
     speech_style: "parle avec bonhomie, expressions du terroir, appelle les gens « mon grand »"
     wage: 14
     money: 450
+    housing: owner
 
   - id: lea
     name: Léa Martin
@@ -66,6 +68,7 @@ agents:
     speech_style: "posé et pédagogue, pose des questions, vouvoie au début"
     wage: 17
     money: 500
+    housing: owner
 
   - id: sofia
     name: Sofia Rossi
@@ -118,3 +121,4 @@ agents:
     speech_style: "courtois et un peu nostalgique, raconte volontiers le passé"
     allowance: 55
     money: 900
+    housing: owner

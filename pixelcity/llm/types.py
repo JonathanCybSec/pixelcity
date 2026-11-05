@@ -55,6 +55,9 @@ class ConversationRequest:
     meet_places: tuple[tuple[str, str], ...] = ()
     affinity: float = 0.0
     occasion: str | None = None  # « ils avaient rendez-vous ici »
+    # Étape 6 bis : l'un est dans le besoin, l'autre peut l'aider (montant maximal).
+    needy: str | None = None
+    max_help: float = 0.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -77,6 +80,7 @@ class ConversationResult:
     summary: str | None = None
     source: str = "script"  # « script », ou le nom du modèle
     meet: MeetProposal | None = None
+    help: float = 0.0  # euros donnés ou prêtés à celui qui est dans le besoin
 
 
 @dataclass(frozen=True, slots=True)
@@ -92,3 +96,52 @@ class ReflectionRequest:
 class ReflectionResult:
     insights: tuple[str, ...]  # vide : la simulation utilisera ses règles
     source: str = "script"
+
+
+# --------------------------------------------------------------------------- #
+# Étape 6 bis : l'IA décide de la vie de chaque habitant
+# --------------------------------------------------------------------------- #
+@dataclass(frozen=True, slots=True)
+class Option:
+    id: str
+    label: str  # ce que l'option veut dire, conséquences comprises
+
+
+@dataclass(frozen=True, slots=True)
+class IntentionRequest:
+    """La veille au soir : que vais-je faire demain ?"""
+
+    persona: Persona
+    memories: tuple[str, ...]
+    day: str  # « mardi »
+    work: str | None  # « boulangerie, 05:00-13:00, 14 €/h » ; None : pas de travail prévu
+    goods: tuple[Option, ...]  # ce qu'il pourrait s'acheter (prix compris)
+    activities: tuple[Option, ...]
+    seed: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class Intentions:
+    work: bool = True
+    purchases: tuple[str, ...] = ()
+    activities: tuple[str, ...] = ()
+    thought: str | None = None
+    source: str = "règles"
+
+
+@dataclass(frozen=True, slots=True)
+class DecisionRequest:
+    """Un moment critique (faim sans le sou...) : que faire, tout de suite ?"""
+
+    persona: Persona
+    memories: tuple[str, ...]
+    situation: str
+    options: tuple[Option, ...]
+    seed: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class Decision:
+    choice: str | None  # None : laisser les règles décider
+    thought: str | None = None
+    source: str = "règles"

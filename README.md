@@ -16,6 +16,8 @@ Inspiré du papier *Generative Agents* (Stanford, 2023, la ville « Smallville �
 - **Des rendez-vous tenus** : « on se retrouve demain au parc vers 17 h 30 ? » s'inscrit dans le plan des deux habitants ; le lendemain, ils y vont. Un lapin se paie en affinité.
 - **Des relations** : chaque échange rapproche (ou non) deux habitants ; entre adultes ouverts à la romance qui s'apprécient, un flirt léger peut naître.
 - **De l'argent** : salaires au fil des heures travaillées, retraite ou allocation chaque nuit, loyer chaque nuit, prix au comptoir. Un habitant fauché renonce au café et au déjeuner dehors ; sans de quoi payer, il repart les mains vides (et s'en souvient). Chaque commerce cumule ses recettes.
+![Noah, expulsé, dort sur un banc du parc](docs/sans-domicile.png)
+
 - **Une ligne de bus** : trois bus font l'aller-retour sur l'avenue, quatre arrêts. Un habitant prend le bus quand c'est plus rapide que de marcher (et qu'il a 1,50 € pour le ticket).
 
 ![Le bus passe devant la boulangerie](docs/bus.png)

@@ -288,6 +288,7 @@ def _continue_session(desk: ServiceDesk, ctx: SimContext) -> None:
             customer.give(session.item)
             ctx.economy.pay(ctx, customer, desk.place_id, session.price)
             ok = True
+            _keep_if_durable(ctx, customer, session.item, desk.place_id)
             if stock.count(session.item) == 0:
                 ctx.emit(EventKind.STOCK_EMPTY, session.staff, desk.place_id, item=session.item)
     desk.results[customer.id] = ok
@@ -325,3 +326,23 @@ def say(ctx: SimContext, speaker_id: str, text: str, listener_id: str | None = N
     until = ctx.clock.tick + round(SPEECH_MINUTES * ctx.clock.ticks_per_minute)
     speaker.speech = Speech(text, until, listener_id)
     ctx.emit(EventKind.SAY, speaker_id, speaker.place_id, text=text, to=listener_id)
+
+
+def _keep_if_durable(ctx: SimContext, customer: Agent, item: str, place_id: str) -> None:
+    """Un téléphone ne se mange pas : il rejoint les biens de l'habitant, qui s'en souvient."""
+    model = ctx.config.actions.items.get(item)
+    if model is None or not model.durable:
+        return
+    from pixelcity.memory.stream import MemoryKind
+    from pixelcity.sim.minds import remember
+
+    customer.remove(item)
+    customer.possessions.append(item)
+    remember(
+        ctx,
+        customer,
+        MemoryKind.OBSERVATION,
+        f"Je me suis offert : {model.label} ({model.price:.0f} €)",
+        6,
+        place_id=place_id,
+    )

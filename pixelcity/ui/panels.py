@@ -141,13 +141,15 @@ def top_bar(f: UiFrame) -> pygame.Rect:
 def _llm_pill(f: UiFrame, bar: pygame.Rect) -> None:
     """Sous l'horloge : qui écrit les répliques (le LLM local, ou le script de repli)."""
     text = f.sim.conversations.status()
-    live = text.startswith("IA locale")
+    live = text.startswith("IA locale") and f.sim.conversations.backend.live
+    if not live:
+        text = "IA absente : règles de secours · " + text
     text_rect = f.texts.render(text[:70], 12, TEXT_2, Weight.MEDIUM).get_rect()
     pill = pygame.Rect(0, bar.bottom + 6, text_rect.width + 30, 22)
     pill.centerx = bar.centerx
     f.glass.panel(f.screen, pill, radius=11)
     dot = (pill.x + 12, pill.centery)
-    pygame.draw.circle(f.screen, ACCENT if live else WARNING, dot, 4)
+    pygame.draw.circle(f.screen, SUCCESS if live else DANGER, dot, 4)
     label(
         f.screen,
         f.texts,
@@ -274,6 +276,8 @@ def _agent_card_content(
             max_width=inner - 70,
         )
         where = sim.world.places[agent.place_id].name if agent.place_id else "dans la rue"
+        if agent.homeless:
+            where = f"SANS DOMICILE · {where}"
         label(screen, texts, where, (x0 + 64, y + 44), size=12, color=color, max_width=inner - 70)
         close = pygame.Rect(rect.right - 34, rect.y + 10, 24, 24)
         if close.collidepoint(f.mouse):

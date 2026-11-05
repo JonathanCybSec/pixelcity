@@ -13,6 +13,7 @@ from pixelcity.agents.needs import Needs
 from pixelcity.agents.plan import DayPlan, PlanBlock
 from pixelcity.agents.tasks import Task
 from pixelcity.config.schemas import AgentModel
+from pixelcity.llm.types import Intentions
 from pixelcity.memory.stream import MemoryStream
 from pixelcity.sim.types import Anim, Facing, NeedKind, Pose, TilePos
 from pixelcity.world.furniture import Spot
@@ -50,6 +51,16 @@ class Agent:
     income: float = 0.0
     expenses: float = 0.0
     bus: int | None = None  # numéro du bus à bord duquel il voyage
+    # Étape 6 bis : la vraie vie.
+    homeless: bool = False
+    arrears_days: int = 0  # nuits passées avec un compte négatif (loyer impayé)
+    worked_minutes: float = 0.0  # aujourd'hui (pour constater une absence)
+    absences: list[int] = field(default_factory=list)  # jours d'absence au travail
+    possessions: list[str] = field(default_factory=list)
+    banned: set[str] = field(default_factory=set)  # commerces qui l'ont mis dehors
+    hired_day: int = -1  # le jour de l'embauche ne compte pas comme une absence
+    unpaid: float = 0.0  # salaire dû que l'employeur n'a pas pu verser
+    intentions: dict[int, Intentions] = field(default_factory=dict)  # jour → décisions de la veille
 
     # --- Où il est, ce qu'il veut faire ---------------------------------------------
     place_id: str | None = None
@@ -86,6 +97,11 @@ class Agent:
     @property
     def first_name(self) -> str:
         return self.profile.name.split()[0]
+
+    @property
+    def home(self) -> str:
+        """Le logement actuel (le parc quand il est à la rue)."""
+        return self.profile.home
 
     @property
     def work_place_id(self) -> str | None:
@@ -135,6 +151,8 @@ class Agent:
         """Phrase courte pour l'interface : « cuisine », « en route : déjeuner »."""
         if self.bus is not None:
             return f"dans le bus n°{self.bus}"
+        if self.homeless and self.task is None:
+            return "à la rue"
         task = self.task
         if task is None:
             return "ne fait rien de particulier"

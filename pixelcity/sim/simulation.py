@@ -34,6 +34,7 @@ from pixelcity.sim.context import SimContext
 from pixelcity.sim.conversation import Conversations
 from pixelcity.sim.economy import Economy
 from pixelcity.sim.events import EventKind, EventLog
+from pixelcity.sim.life import Life
 from pixelcity.sim.minds import Minds
 from pixelcity.sim.relations import Relations
 from pixelcity.sim.rng import RngRegistry
@@ -96,6 +97,7 @@ class Simulation:
         self.appointments = Appointments()
         self.minds = Minds(dialogue or script)
         self.economy = Economy()
+        self.life = Life(dialogue or script)
         self.transit = Transit(self.world, config.settings.transit, self.clock)
         minutes_per_tick = self.clock.tick_seconds / 60
         self.ctx = SimContext(
@@ -114,6 +116,7 @@ class Simulation:
             appointments=self.appointments,
             economy=self.economy,
             transit=self.transit,
+            life=self.life,
         )
         for agent in self.agents.values():
             agent.money = agent.profile.money
@@ -141,6 +144,7 @@ class Simulation:
         self.conversations.update(self.ctx)
         self.minds.update(self.ctx)
         self.economy.update(self.ctx)
+        self.life.update(self.ctx)
         clock.advance()
 
     def run_ticks(self, count: int) -> None:

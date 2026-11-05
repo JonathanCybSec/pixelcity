@@ -43,7 +43,10 @@ from pixelcity.world.place import Access, Place
 
 ANTICIPATION_HORIZON = 180  # au-delà, inutile d'estimer le trajet
 DEPARTURE_MARGIN = 5
-URGENT_RETRY_MINUTES = 20  # si aucune solution, on réessaie plus tard
+URGENT_RETRY_MINUTES = 20
+DECISION_POLL_MINUTES = (
+    1  # l'IA réfléchit : on revient voir très vite  # si aucune solution, on réessaie plus tard
+)
 # Avant de partir, on passe aux toilettes si la vessie commence à tirer :
 # sinon on fait demi-tour cinq minutes plus tard (vu dans le journal !).
 BEFORE_LEAVING_BLADDER = 35.0
@@ -65,6 +68,23 @@ URGENT_LABELS: dict[NeedKind, str] = {
 FOOD_RECIPES: dict[PlaceKind, str] = {
     PlaceKind.BAKERY: "bakery_lunch",
     PlaceKind.CAFE: "cafe_lunch",
+    PlaceKind.SUPERMARKET: "buy_snack",
+}
+# Ce que coûte la recette (on ne va pas au café sans de quoi payer le plat).
+FOOD_ITEMS: dict[PlaceKind, str] = {
+    PlaceKind.BAKERY: "bread",
+    PlaceKind.CAFE: "meal",
+    PlaceKind.SUPERMARKET: "snack",
+}
+FOOD_ACTIVITY: dict[PlaceKind, ActivityType] = {
+    PlaceKind.BAKERY: ActivityType.EAT,
+    PlaceKind.CAFE: ActivityType.EAT,
+    PlaceKind.SUPERMARKET: ActivityType.SHOP,
+}
+EMERGENCY_ACTIVITY: dict[str, ActivityType] = {
+    "steal_food": ActivityType.SHOP,
+    "beg": ActivityType.LEISURE,
+    "rest_hungry": ActivityType.RELAX,
 }
 # Ce qu'on peut manger tel quel, si on l'a sur soi : article → recette.
 CARRIED_FOOD: dict[str, str] = {
@@ -114,6 +134,10 @@ def _ensure_plan(agent: Agent, ctx: SimContext, planner: Planner) -> None:
             walk_speed=ctx.config.settings.walk_speed_tiles_per_minute,
             appointments=tuple(ctx.appointments.for_agent(agent.id, day)),
             tight_budget=agent.money < ctx.config.settings.economy.tight_budget,
+            intentions=agent.intentions.get(day),
+            homeless=agent.homeless,
+            money=agent.money,
+            prices={item: model.price for item, model in ctx.config.actions.items.items()},
         )
         agent.plan = planner.plan_day(agent, day, planning)
         agent.block_index = 0
@@ -269,7 +293,10 @@ def _check_urgent_needs(agent: Agent, ctx: SimContext) -> None:
             continue
         task = _urgent_task(agent, need, ctx)
         if task is None:
-            agent.urgent_retry[need] = now + URGENT_RETRY_MINUTES
+            deciding = need is NeedKind.HUNGER and ctx.life.deciding(agent.id)
+            agent.urgent_retry[need] = now + (
+                DECISION_POLL_MINUTES if deciding else URGENT_RETRY_MINUTES
+            )
             continue
         ctx.emit(
             EventKind.NEED_CRITICAL,
@@ -335,17 +362,39 @@ def _urgent_task(agent: Agent, need: NeedKind, ctx: SimContext) -> Task | None:
             shop = _nearest_food_place(agent, ctx)
             if shop is not None:
                 recipe = FOOD_RECIPES[shop.kind]
-                return _make_urgent(agent, need, recipe, shop, ActivityType.EAT, ctx)
+                return _make_urgent(agent, need, recipe, shop, FOOD_ACTIVITY[shop.kind], ctx)
             if has_food:
                 return _make_urgent(agent, need, "snack", home, ActivityType.EAT, ctx)
-            return None
+            # Rien d'ouvert : on attendra. Rien à manger et pas de quoi payer : c'est
+            # à l'IA de l'habitant de décider (le jour seulement ; la nuit, on dort).
+            cheapest = min(ctx.config.actions.items[i].price for i in FOOD_ITEMS.values())
+            if agent.money >= cheapest or not 7 * 60 <= ctx.clock.minute_of_day < 20 * 60:
+                return None
+            block = agent.current_block()
+            if block is not None and block.activity is ActivityType.WORK:
+                return None  # on va travailler le ventre vide : c'est ce soir qu'on sera payé
+            choice = ctx.life.emergency_food(ctx, agent)
+            if choice is None:
+                return None
+            recipe_id, place_id = choice
+            return _make_urgent(
+                agent,
+                need,
+                recipe_id,
+                ctx.world.places[place_id],
+                EMERGENCY_ACTIVITY[recipe_id],
+                ctx,
+            )
         case NeedKind.ENERGY:
             if sleeping:
                 return None
+            nap = "sleep_rough" if agent.homeless else "nap"
             return _make_urgent(
-                agent, need, "nap", home, ActivityType.SLEEP, ctx, minutes=NAP_MINUTES
+                agent, need, nap, home, ActivityType.SLEEP, ctx, minutes=NAP_MINUTES
             )
         case NeedKind.HYGIENE:
+            if agent.homeless:
+                return None  # pas de douche à la rue
             if sleeping:
                 return None  # on ne se réveille pas pour une douche : ça attendra le matin
             return _make_urgent(agent, need, "shower", home, ActivityType.HYGIENE, ctx)
@@ -418,10 +467,13 @@ def _nearest_place_with(
 def _nearest_food_place(agent: Agent, ctx: SimContext) -> Place | None:
     best: Place | None = None
     best_length = 1 << 30
+    items = ctx.config.actions.items
     for place in ctx.world.places.values():
         if place.kind not in FOOD_RECIPES or place.id == agent.work_place_id:
             continue
-        if not _can_use(agent, place, ActivityType.EAT, ctx):
+        if place.id in agent.banned or agent.money < items[FOOD_ITEMS[place.kind]].price:
+            continue  # interdit d'entrée, ou pas de quoi payer
+        if not _can_use(agent, place, FOOD_ACTIVITY[place.kind], ctx):
             continue
         length = 0 if agent.place_id == place.id else ctx.world.path_length_to(agent.tile, place)
         if length is not None and length < best_length:
@@ -509,7 +561,13 @@ def _on_enter(agent: Agent, ctx: SimContext) -> None:
 def _pop_finished(agent: Agent, ctx: SimContext) -> None:
     while agent.tasks and agent.tasks[-1].finished:
         done = agent.tasks.pop()
-        if done.kind is TaskKind.URGENT and done.need is not None and done.phase is Phase.DONE:
+        recovered = done.need is not None and agent.needs[done.need] > 30
+        if (
+            done.kind is TaskKind.URGENT
+            and done.need is not None
+            and done.phase is Phase.DONE
+            and recovered
+        ):
             ctx.emit(
                 EventKind.NEED_RECOVERED,
                 agent.id,
@@ -574,7 +632,7 @@ def _filler(block: PlanBlock, recipe_id: str, place: Place, label: str, ctx: Sim
     recipe = ctx.config.actions.recipes[recipe_id]
     activity = block.activity if place.id == block.place_id else ActivityType.RELAX
     if recipe_id in FOOD_RECIPES.values() or recipe_id == "snack":
-        activity = ActivityType.EAT
+        activity = FOOD_ACTIVITY.get(place.kind, ActivityType.EAT)
     return Task(
         kind=TaskKind.BLOCK,
         recipe_id=recipe_id,
