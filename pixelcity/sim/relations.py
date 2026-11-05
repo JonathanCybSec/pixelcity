@@ -34,6 +34,8 @@ class Relation:
     familiarity: int = 0  # nombre de rencontres
     affinity: float = 0.0
     last_tick: int = 0
+    flirts: int = 0
+    summary: str | None = None  # souvenir de la dernière conversation (donné au LLM)
 
     @property
     def stage(self) -> str:
@@ -71,6 +73,9 @@ class Relations:
     def get(self, a: str, b: str) -> Relation | None:
         return self._pairs.get(self.key(a, b))
 
+    def pairs(self) -> list[tuple[tuple[str, str], Relation]]:
+        return sorted(self._pairs.items())
+
     def of(self, agent_id: str) -> list[tuple[str, Relation]]:
         """Les relations d'un habitant, de la plus forte à la plus faible."""
         found = [
@@ -82,9 +87,21 @@ class Relations:
         return found
 
     def meet(
-        self, a: AgentModel, b: AgentModel, tick: int, rng: random.Random
+        self,
+        a: AgentModel,
+        b: AgentModel,
+        tick: int,
+        rng: random.Random,
+        *,
+        delta: float | None = None,
     ) -> tuple[Relation, str, str]:
-        """Une rencontre de plus. Renvoie la relation, et le palier avant / après."""
+        """Une rencontre de plus. Renvoie la relation, et le palier avant / après.
+
+        `delta` : l'effet de la conversation jugé par le LLM (de -6 à 6). Sans
+        lui, on l'estime d'après la compatibilité des caractères. Dans les deux
+        cas, le caractère compte un peu : un LLM trop enthousiaste ne rend pas
+        amis deux habitants que tout oppose.
+        """
         key = self.key(a.id, b.id)
         relation = self._pairs.get(key)
         if relation is None:
@@ -93,7 +110,9 @@ class Relations:
         relation.familiarity += 1
         # Les premières rencontres comptent le plus : l'effet s'atténue ensuite.
         weight = 1.0 / (1.0 + relation.familiarity / 8)
-        delta = (8.0 * compatibility(a, b) + rng.uniform(-1.5, 1.5)) * weight
+        base = 8.0 * compatibility(a, b) + rng.uniform(-1.5, 1.5)
+        raw = base if delta is None else 1.2 * delta + 0.3 * base
+        delta = raw * weight
         relation.affinity = max(AFFINITY_MIN, min(AFFINITY_MAX, relation.affinity + delta))
         relation.last_tick = tick
         return relation, before, relation.stage

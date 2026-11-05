@@ -11,7 +11,8 @@ Inspiré du papier *Generative Agents* (Stanford, 2023, la ville « Smallville �
 - **Une ville de 96 × 64 tuiles** : quatre maisons, une résidence de trois appartements, une boulangerie, un café, un supermarché, des bureaux, une école, une salle de sport et un parc. Pas de toits : on voit tout ce qui se passe à l'intérieur.
 - **Des besoins comblés par des gestes visibles** : pour dîner, un habitant sort des ingrédients du frigo (s'il en reste), épluche les légumes, allume la cuisinière, s'assoit à table, puis fait la vaisselle. Douche le matin, toilettes, courses rangées dans le frigo en rentrant, gamelle préparée quand il n'y a rien d'ouvert à midi...
 - **Des commerces qui vivent** : on fait la queue, le boulanger lâche son pétrin pour servir, client et vendeur échangent quelques répliques (bulles), la vitrine peut se vider. Sans caissière, la caisse du supermarché passe en libre-service.
-- **Des relations** : chaque échange rapproche (ou non) deux habitants, selon leurs caractères.
+- **Des conversations écrites par une IA locale** (Ollama) : au comptoir, et en ville quand deux habitants se croisent. Chacun parle selon son caractère et sa façon de parler, évoque ce qu'il fait ou ce dont il a besoin, et se souvient de leur dernière discussion. Sans Ollama, des répliques scriptées prennent le relais.
+- **Des relations** : chaque échange rapproche (ou non) deux habitants ; entre adultes ouverts à la romance qui s'apprécient, un flirt léger peut naître.
 - **Le jour et la nuit** : crépuscule orangé, nuit bleutée, fenêtres éclairées là où quelqu'un est réveillé, lampadaires.
 
 ![Au comptoir de la boulangerie](docs/boulangerie.png)
@@ -22,15 +23,27 @@ Inspiré du papier *Generative Agents* (Stanford, 2023, la ville « Smallville �
 |---|---|---|
 | 1 | MVP : carte, 3 habitants, A*, horloge, routine sans LLM | **fait** |
 | 2 | Ville visible : assets pixel-agents, intérieurs, besoins par gestes concrets, commerces (file, service, stock), interface translucide | **fait** |
-| 3 | Conversations par LLM local (Ollama) : en ville et au comptoir, affinités, flirt (entre adultes uniquement) | à venir |
+| 3 | Conversations par LLM local (Ollama) : en ville et au comptoir, affinités, flirt (entre adultes uniquement) | **fait** |
 | 4 | Studio : créer les habitants de chaque simulation (LLM, idéologie, façon de parler, apparence) | à venir |
 | 5 | Mémoire complète (flux, récupération, réflexion) | à venir |
 | 6 | Économie, plus de bâtiments, transports | à venir |
 | 7 | Module Test de produit et exports | à venir |
 | 8 | Sauvegarde, optimisation, 50 à 100 habitants | à venir |
-| 9 | Exécutable Windows (.exe) avec PyInstaller | à venir |
+| 9 | Exécutable Windows (.exe) avec PyInstaller | **fait** (Release GitHub, mise à jour à chaque push) |
 
-## Installation
+## Jouer (Windows, sans rien installer)
+
+Télécharge `PixelCity-Windows.zip` dans les [Releases](https://github.com/JonathanCybSec/pixelcity/releases), dézippe, double-clique sur `PixelCity.exe`.
+
+## Brancher l'IA locale (Ollama)
+
+1. Installe [Ollama](https://ollama.com/download), puis télécharge un modèle : `ollama pull qwen2.5:3b` (2 Go, rapide). Avec une bonne carte graphique, `qwen2.5:7b` ou `mistral` parlent mieux.
+2. (Facultatif) Copie `.env.example` en `.env` à côté de `PixelCity.exe` (ou à la racine du dépôt) pour changer de modèle : `OLLAMA_MODEL=qwen2.5:7b`. `PIXELCITY_LLM=off` coupe l'IA.
+3. Lance le jeu : la pastille sous l'horloge affiche « IA locale : qwen2.5:3b ». Joue en x1 ou x3 pour lire les conversations : en x10 et x30, le temps simulé file trop vite pour attendre l'IA, et les répliques redeviennent scriptées.
+
+Chaque habitant peut avoir son propre modèle (`llm_model`) et sa façon de parler (`speech_style`) dans `agents.yaml`.
+
+## Installation (développement)
 
 Python **3.12** est requis. Sous Windows, travaille en natif (pas sous WSL) : PyInstaller ne sait pas fabriquer un `.exe` depuis Linux, et pygame sous WSL passe par une couche d'affichage moins fiable.
 
@@ -67,6 +80,7 @@ python -m pixelcity                                    # la ville, dans une fen�
 python -m pixelcity --headless --days 7 --seed 42      # une semaine sans fenêtre, avec le journal
 python -m pixelcity --headless --days 30 --quiet       # seulement le bilan
 python -m pixelcity --headless --days 7 --log run.jsonl  # exporter les événements
+python -m pixelcity --headless --days 1 --no-llm       # sans Ollama (répliques scriptées)
 ```
 
 Deux lancements avec la même graine produisent exactement la même simulation : le bilan affiche une « empreinte du journal » qui permet de le vérifier.
@@ -113,7 +127,8 @@ Les tests couvrent notamment : le petit-déjeuner qui passe vraiment par le frig
 | `pixelcity/config/agents.yaml` | habitants : identité, apparence, sommeil, travail, personnalité |
 | `pixelcity/config/objects.yaml` | ce que permet chaque meuble (verbes, places, stocks, ventes) |
 | `pixelcity/config/actions.yaml` | les recettes : comment, geste par geste, on dîne, on fait ses courses, on travaille |
-| `pixelcity/config/dialogues.yaml` | les répliques des commerces (en attendant les LLM de l'étape 3) |
+| `pixelcity/config/dialogues.yaml` | les répliques de repli, quand Ollama n'est pas là |
+| `.env` (copie de `.env.example`) | le LLM : activé ou non, adresse d'Ollama, modèle |
 | `tools/make_city.py` | le plan de la ville (gabarits de bâtiments), qui écrit `assets/maps/city.tmx` |
 
 Les fichiers YAML sont validés au démarrage avec des messages d'erreur précis : une recette qui utilise un verbe qu'aucun meuble ne propose, ou un article inconnu, est signalée immédiatement. Les heures s'écrivent **entre guillemets** (`"07:30"`) : sans guillemets, YAML lit `23:00` comme un nombre.

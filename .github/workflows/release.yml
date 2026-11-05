@@ -3,7 +3,7 @@ name: Exécutable Windows
 on:
   push:
     tags: ["v*"]
-    branches: [etape-2-ville-visible]
+    branches: [etape-2-ville-visible, etape-3-conversations]
     paths: [".github/workflows/release.yml", "packaging/**", "pixelcity/**"]
   workflow_dispatch:
 
@@ -35,12 +35,12 @@ jobs:
         env:
           SDL_VIDEODRIVER: dummy
         run: |
-          $p = Start-Process dist/PixelCity/PixelCity.exe -ArgumentList "--headless","--days","0.1","--quiet" -Wait -PassThru
+          $p = Start-Process dist/PixelCity/PixelCity.exe -ArgumentList "--headless","--days","0.1","--quiet","--no-llm" -Wait -PassThru
           if ($p.ExitCode -ne 0) { exit 1 }
       - name: Zipper
         shell: pwsh
         run: |
-          Copy-Item README.md, CREDITS.md dist/PixelCity/
+          Copy-Item README.md, CREDITS.md, .env.example dist/PixelCity/
           Compress-Archive -Path dist/PixelCity -DestinationPath PixelCity-Windows.zip
       - uses: actions/upload-artifact@v4
         with:
@@ -53,4 +53,4 @@ jobs:
         run: |
           V="v$(python -c "import tomllib;print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")"
           gh release delete "$V" --yes --cleanup-tag 2>/dev/null || true
-          gh release create "$V" PixelCity-Windows.zip --target "$GITHUB_SHA" --title "PixelCity $V" --notes "Dézippe, puis double-clique sur PixelCity\PixelCity.exe."
+          gh release create "$V" PixelCity-Windows.zip --target "$GITHUB_SHA" --title "PixelCity $V" --notes "Dézippe, puis double-clique sur PixelCity\PixelCity.exe. Pour les conversations par IA : installe Ollama puis ollama pull qwen2.5:3b."

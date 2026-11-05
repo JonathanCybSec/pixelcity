@@ -25,9 +25,11 @@ from pixelcity.agents.planner import Planner, RuleBasedPlanner
 from pixelcity.agents.routine import update_agent
 from pixelcity.config.loader import GameConfig
 from pixelcity.config.schemas import AgentModel
+from pixelcity.llm.backends import DialogueBackend, ScriptedBackend
 from pixelcity.resources import assets_dir
 from pixelcity.sim.clock import SimClock
 from pixelcity.sim.context import SimContext
+from pixelcity.sim.conversation import Conversations
 from pixelcity.sim.events import EventKind, EventLog
 from pixelcity.sim.relations import Relations
 from pixelcity.sim.rng import RngRegistry
@@ -59,6 +61,7 @@ class Simulation:
         planner: Planner | None = None,
         max_events: int | None = 50_000,
         asset_roots: tuple[Path, ...] | None = None,
+        dialogue: DialogueBackend | None = None,
     ) -> None:
         self.config = config
         self.seed = config.settings.seed if seed is None else seed
@@ -80,6 +83,10 @@ class Simulation:
         }
         self.desks = build_desks(self.world.furniture)
         self.relations = Relations()
+        script = ScriptedBackend(config.dialogues)
+        # Par défaut : le script (instantané, reproductible). main.py branche
+        # Ollama quand le .env l'active.
+        self.conversations = Conversations(dialogue or script, script)
         minutes_per_tick = self.clock.tick_seconds / 60
         self.ctx = SimContext(
             config=config,
@@ -93,6 +100,7 @@ class Simulation:
             walk_tiles_per_tick=config.settings.walk_speed_tiles_per_minute * minutes_per_tick,
             hours_per_tick=self.clock.hours_per_tick,
             minutes_per_tick=minutes_per_tick,
+            conversations=self.conversations,
         )
         self._commands: deque[Command] = deque()
         self.ctx.emit(EventKind.SIM_STARTED, seed=self.seed, agents=len(self.agents))
@@ -111,6 +119,7 @@ class Simulation:
         for agent in self.agents.values():
             update_agent(agent, self.ctx, self.planner)
         update_desks(self.ctx)
+        self.conversations.update(self.ctx)
         clock.advance()
 
     def run_ticks(self, count: int) -> None:
@@ -119,6 +128,10 @@ class Simulation:
 
     def run_days(self, days: float) -> None:
         self.run_ticks(round(days * self.clock.ticks_per_day))
+
+    def close(self) -> None:
+        """Arrête proprement le fil de travail du LLM."""
+        self.conversations.backend.close()
 
     def apply(self, command: Command) -> None:
         """Programme une commande : elle sera exécutée au début du prochain tick."""

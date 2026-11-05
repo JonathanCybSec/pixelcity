@@ -132,7 +132,30 @@ def top_bar(f: UiFrame) -> pygame.Rect:
             )
         f.hits.add(button, action)
         bx += w + 2
+    _llm_pill(f, rect)
     return rect
+
+
+def _llm_pill(f: UiFrame, bar: pygame.Rect) -> None:
+    """Sous l'horloge : qui écrit les répliques (le LLM local, ou le script de repli)."""
+    text = f.sim.conversations.status()
+    live = text.startswith("IA locale")
+    text_rect = f.texts.render(text[:70], 12, TEXT_2, Weight.MEDIUM).get_rect()
+    pill = pygame.Rect(0, bar.bottom + 6, text_rect.width + 30, 22)
+    pill.centerx = bar.centerx
+    f.glass.panel(f.screen, pill, radius=11)
+    dot = (pill.x + 12, pill.centery)
+    pygame.draw.circle(f.screen, ACCENT if live else WARNING, dot, 4)
+    label(
+        f.screen,
+        f.texts,
+        text[:70],
+        (pill.x + 22, pill.centery),
+        size=12,
+        color=TEXT_2,
+        weight=Weight.MEDIUM,
+        anchor="midleft",
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -326,7 +349,8 @@ def _agent_card_content(
                 label(
                     screen, texts, other.first_name, (x0 + 26, y + 1), size=12, weight=Weight.MEDIUM
                 )
-                label(screen, texts, relation.stage, (x0 + 100, y + 1), size=12, color=TEXT_2)
+                stage = relation.stage + (" · flirt" if relation.flirts else "")
+                label(screen, texts, stage, (x0 + 100, y + 1), size=12, color=TEXT_2)
                 affinity = (relation.affinity + 100) / 200
                 bar(screen, pygame.Rect(rect.right - PAD - 70, y + 7, 70, 5), affinity, ACCENT)
                 y += 22

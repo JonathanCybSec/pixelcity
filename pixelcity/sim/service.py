@@ -7,14 +7,14 @@ supermarché) possède :
 
 Le client rejoint la file et avance à mesure qu'elle se vide. Quand il est
 devant le comptoir ET qu'un vendeur se tient derrière, une SESSION commence :
-quelques minutes, quatre répliques, puis l'article passe du stock du commerce
-à l'inventaire du client. Si le stock est vide, le vendeur s'excuse et le
+une conversation (générée par le LLM, ou scriptée), puis l'article passe du
+stock du commerce à l'inventaire du client. Si le stock est vide, le vendeur s'excuse et le
 client repart les mains vides : à lui (à sa recette) de trouver une solution.
 
 C'est un petit « protocole » entre deux agents, comme une poignée de main
 réseau (SYN, SYN-ACK, ACK) : chacun attend l'autre, et rien ne se passe tant
-que les deux ne sont pas en place. À l'étape 3, les répliques scriptées
-seront remplacées par une vraie conversation générée par les LLM.
+que les deux ne sont pas en place. La conversation elle-même vit dans
+`conversation.py` ; le comptoir attend simplement qu'elle se termine.
 """
 
 from __future__ import annotations
@@ -22,6 +22,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from pixelcity.llm.types import ConversationKind
 from pixelcity.sim.events import EventKind
 from pixelcity.sim.types import Anim, Facing, TilePos
 from pixelcity.world.furniture import Container, Furniture, Spot
@@ -29,11 +30,10 @@ from pixelcity.world.furniture import Container, Furniture, Spot
 if TYPE_CHECKING:
     from pixelcity.agents.agent import Agent
     from pixelcity.sim.context import SimContext
+    from pixelcity.sim.conversation import Conversation
 
 SESSION_MINUTES = 3.0
 SELF_SERVICE_WAIT_MINUTES = 2  # on laisse au caissier le temps d'arriver avant le libre-service
-# Moments des quatre répliques, en minutes depuis le début du service.
-LINE_OFFSETS = (0.0, 0.8, 1.8, 2.5)
 SPEECH_MINUTES = 1.0  # durée d'affichage d'une bulle, en temps simulé
 
 
@@ -53,6 +53,7 @@ class Session:
     in_stock: bool
     ends_tick: int
     lines: list[Line]
+    conversation: Conversation | None = None
 
 
 @dataclass(slots=True, eq=False)
@@ -201,9 +202,13 @@ def _try_start_session(desk: ServiceDesk, ctx: SimContext) -> None:
     stock = desk.stock(place.container_with(item))
     in_stock = stock is not None and stock.has(item)
     ticks_per_minute = ctx.clock.ticks_per_minute
+    conversation = None
+    lines: list[Line] = []
     if staff is not None:
-        lines = _script(desk, customer, staff, item, in_stock, ctx)
-        minutes = SESSION_MINUTES
+        conversation = ctx.conversations.start(
+            ctx, ConversationKind.COUNTER, customer, staff, item=item, in_stock=in_stock
+        )
+        minutes = SESSION_MINUTES  # durée minimale ; on attend aussi la fin de l'échange
         # Face à face : le client regarde le comptoir, le vendeur regarde le client.
         staff.facing = Facing.DOWN
         staff.anim = Anim.TALK
@@ -221,6 +226,7 @@ def _try_start_session(desk: ServiceDesk, ctx: SimContext) -> None:
         in_stock=in_stock,
         ends_tick=now + round(minutes * ticks_per_minute),
         lines=lines,
+        conversation=conversation,
     )
     ctx.emit(
         EventKind.SERVICE_STARTED,
@@ -241,6 +247,8 @@ def _continue_session(desk: ServiceDesk, ctx: SimContext) -> None:
     staff_gone = session.staff is not None and (staff is None or staff.id != session.staff)
     if customer is None or staff_gone:
         # Le vendeur a quitté son poste (fin de service) : on interrompt.
+        if session.conversation is not None:
+            ctx.conversations.cancel(session.conversation, ctx)
         desk.session = None
         if customer is not None:
             desk.results[customer.id] = False
@@ -253,6 +261,8 @@ def _continue_session(desk: ServiceDesk, ctx: SimContext) -> None:
     _say_due_lines(session, ctx)
     if ctx.clock.tick < session.ends_tick:
         return
+    if session.conversation is not None and not session.conversation.finished:
+        return  # on se dit encore au revoir
 
     ok = False
     if session.in_stock:
@@ -272,7 +282,6 @@ def _continue_session(desk: ServiceDesk, ctx: SimContext) -> None:
     customer.anim = Anim.IDLE
     if staff is not None:
         staff.anim = Anim.IDLE
-        _meet(customer, staff, ctx)
     ctx.emit(
         EventKind.SERVICE_DONE,
         customer.id,
@@ -281,23 +290,6 @@ def _continue_session(desk: ServiceDesk, ctx: SimContext) -> None:
         item=session.item,
         ok=ok,
     )
-
-
-def _meet(customer: Agent, staff: Agent, ctx: SimContext) -> None:
-    """Un échange au comptoir rapproche (ou éloigne) le client et le vendeur."""
-    rng = ctx.rngs.stream("relations")
-    _relation, before, after = ctx.relations.meet(
-        customer.profile, staff.profile, ctx.clock.tick, rng
-    )
-    if before != after:
-        ctx.emit(
-            EventKind.RELATION,
-            customer.id,
-            customer.place_id,
-            other=staff.id,
-            stage=after,
-            before=before,
-        )
 
 
 def _say_due_lines(session: Session, ctx: SimContext) -> None:
@@ -315,30 +307,3 @@ def say(ctx: SimContext, speaker_id: str, text: str, listener_id: str | None = N
     until = ctx.clock.tick + round(SPEECH_MINUTES * ctx.clock.ticks_per_minute)
     speaker.speech = Speech(text, until, listener_id)
     ctx.emit(EventKind.SAY, speaker_id, speaker.place_id, text=text, to=listener_id)
-
-
-def _script(
-    desk: ServiceDesk,
-    customer: Agent,
-    staff: Agent,
-    item: str,
-    in_stock: bool,
-    ctx: SimContext,
-) -> list[Line]:
-    """Les quatre répliques d'un service, tirées au sort (flux de hasard du comptoir)."""
-    lines_cfg = ctx.config.dialogues
-    rng = ctx.rngs.stream(f"dialogue:{desk.uid}")
-    orders = lines_cfg.order.get(item, ("Bonjour, s'il vous plaît.",))
-    serves = lines_cfg.serve.get(item, ("Voilà !",))
-    texts = [
-        (customer, staff, f"{rng.choice(lines_cfg.greet)} {rng.choice(orders)}"),
-        (staff, customer, rng.choice(serves) if in_stock else rng.choice(lines_cfg.out_of_stock)),
-        (customer, staff, rng.choice(lines_cfg.thanks if in_stock else lines_cfg.disappointed)),
-        (staff, customer, rng.choice(lines_cfg.goodbye)),
-    ]
-    start = ctx.clock.tick
-    per_minute = ctx.clock.ticks_per_minute
-    return [
-        Line(start + round(offset * per_minute), speaker.id, listener.id, text)
-        for offset, (speaker, listener, text) in zip(LINE_OFFSETS, texts, strict=True)
-    ]

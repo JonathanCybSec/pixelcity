@@ -11,9 +11,12 @@ import io
 import os
 import sys
 from collections.abc import Sequence
+from dataclasses import replace
 from pathlib import Path
 
 from pixelcity.config.loader import ConfigError, load_config
+from pixelcity.llm.backends import make_backend
+from pixelcity.llm.settings import load_llm_settings
 from pixelcity.sim.simulation import Simulation
 from pixelcity.world.tmx import TmxError
 from pixelcity.world.world import MapError
@@ -29,6 +32,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--quiet", action="store_true", help="n'afficher que le bilan")
     parser.add_argument("--log", type=Path, default=None, help="exporter les événements (JSONL)")
     parser.add_argument("--config", type=Path, default=None, help="dossier de configuration")
+    parser.add_argument(
+        "--no-llm", action="store_true", help="répliques scriptées, sans appeler Ollama"
+    )
     return parser
 
 
@@ -55,7 +61,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.error("--days doit être strictement positif")
     try:
         config = load_config(args.config)
-        sim = Simulation(config, seed=args.seed)
+        settings = load_llm_settings()
+        if args.no_llm:
+            settings = replace(settings, enabled=False)
+        # En headless, la simulation attend chaque réponse : le journal reste
+        # lisible et ne dépend pas de la vitesse de la carte graphique.
+        backend = make_backend(settings, config.dialogues, blocking=args.headless)
+        sim = Simulation(config, seed=args.seed, dialogue=backend)
     except (ConfigError, MapError, TmxError) as exc:
         print(f"Erreur : {exc}", file=sys.stderr)
         return 2
@@ -64,6 +76,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         from pixelcity.headless import run_headless
 
         try:
+            print(f"Conversations : {sim.conversations.status()}")
             run_headless(sim, args.days, verbose=not args.quiet, jsonl_path=args.log)
         except BrokenPipeError:
             # Sortie envoyée dans un programme qui s'arrête avant la fin
@@ -73,6 +86,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             devnull = os.open(os.devnull, os.O_WRONLY)
             os.dup2(devnull, sys.stdout.fileno())
             return 1
+        finally:
+            sim.close()
         return 0
 
     # Import « paresseux » : pygame n'est chargé QUE si on ouvre une fenêtre.
@@ -80,7 +95,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
     from pixelcity.engine.app import GameApp
 
-    GameApp(sim).run()
+    try:
+        GameApp(sim).run()
+    finally:
+        sim.close()
     return 0
 
 

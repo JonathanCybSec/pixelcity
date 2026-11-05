@@ -88,6 +88,15 @@ def describe(event: Event, agent_names: dict[str, str], place_names: dict[str, s
             if not data.get("before"):
                 return f"{who} et {other} font connaissance"
             return f"{who} et {other} : {_STAGE_TEXT.get(stage, stage)}"
+        case EventKind.FLIRT:
+            other = _first(agent_names.get(str(data.get("other")), str(data.get("other"))))
+            return f"{who} et {other} se font les yeux doux"
+        case EventKind.CHAT_STARTED:
+            other = _first(agent_names.get(str(data.get("other")), str(data.get("other"))))
+            return f"{who} discute avec {other}"
+        case EventKind.CHAT_DONE:
+            other = _first(agent_names.get(str(data.get("other")), str(data.get("other"))))
+            return f"{who} et {other} se quittent"
     return f"{event.kind.value} {event.data}"
 
 

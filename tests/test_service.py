@@ -89,6 +89,7 @@ def _staff_behind(sim: Simulation, agent_id: str, desk: ServiceDesk) -> None:
 def _serve(sim: Simulation, minutes: float) -> None:
     for _ in range(round(minutes * sim.clock.ticks_per_minute)):
         update_desks(sim.ctx)
+        sim.conversations.update(sim.ctx)  # la conversation au comptoir
         sim.clock.advance()
 
 
@@ -99,7 +100,7 @@ def test_rupture_de_stock(make_sim: Callable[..., Simulation]) -> None:
     desk.furniture.container.items["bread"] = 0
     _customer_at_counter(sim, "lea", desk, "bread")
     _staff_behind(sim, "marcel", desk)
-    _serve(sim, 5)
+    _serve(sim, 8)
     assert desk.results.get("lea") is False
     assert not sim.agents["lea"].carries("bread")
     lines = [e.data.get("text") for e in events_of(sim, EventKind.SAY, "marcel")]
@@ -113,7 +114,7 @@ def test_service_normal_et_stock(make_sim: Callable[..., Simulation]) -> None:
     before = desk.furniture.container.count("bread")
     _customer_at_counter(sim, "lea", desk, "bread")
     _staff_behind(sim, "marcel", desk)
-    _serve(sim, 5)
+    _serve(sim, 8)
     assert desk.results.get("lea") is True
     assert sim.agents["lea"].carries("bread")
     assert desk.furniture.container.count("bread") == before - 1

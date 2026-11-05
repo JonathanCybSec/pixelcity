@@ -79,6 +79,11 @@ def _print_summary(sim: Simulation, report: HeadlessReport, out: TextIO) -> None
         file=out,
     )
     print(f"Graine {sim.seed} · empreinte du journal : {report.digest[:16]}", file=out)
+    convs = sim.conversations
+    counts = " · ".join(f"{kind.value} {n}" for kind, n in convs.counts.items())
+    sources = ", ".join(f"{name} {n}" for name, n in sorted(convs.by_source.items())) or "aucune"
+    flirts = sum(relation.flirts for _, relation in sim.relations.pairs())
+    print(f"Conversations : {counts} (répliques : {sources}) · flirts : {flirts}", file=out)
     for agent in sim.agents.values():
         needs = " · ".join(f"{kind.label} {agent.needs[kind]:.0f}" for kind in NeedKind)
         top = sorted(agent.minutes_by_recipe.items(), key=lambda item: -item[1])[:5]

@@ -215,6 +215,13 @@ class AgentModel(StrictModel):
     work: WorkModel | None = None
     personality: Personality
     values: tuple[str, ...] = ()
+    # Étape 3 : ce qui nourrit les conversations.
+    speech_style: str = ""  # « phrases courtes, tutoie tout le monde »
+    llm_model: str | None = None  # modèle Ollama propre à cet habitant
+    # Le flirt n'est possible qu'entre deux adultes ouverts à la romance et
+    # sans autre partenaire. `partner` : l'id de son ou sa partenaire.
+    romance: bool = False
+    partner: Slug | None = None
 
 
 class AgentsConfig(StrictModel):
@@ -362,6 +369,13 @@ class ActionsConfig(StrictModel):
 # --------------------------------------------------------------------------- #
 # dialogues.yaml : les répliques scriptées (avant les LLM de l'étape 3)
 # --------------------------------------------------------------------------- #
+class StreetDialogues(StrictModel):
+    opener: tuple[str, ...]
+    reply: tuple[str, ...]
+    need: tuple[str, ...]  # « {need} » est remplacé par le besoin (« j'ai faim »)
+    closer: tuple[str, ...]
+
+
 class DialoguesConfig(StrictModel):
     greet: tuple[str, ...]
     welcome: tuple[str, ...]
@@ -372,6 +386,7 @@ class DialoguesConfig(StrictModel):
     self_checkout: tuple[str, ...]
     goodbye: tuple[str, ...]
     out_of_stock: tuple[str, ...]
+    street: StreetDialogues
 
 
 def _ensure_unique(ids: list[str], what: str) -> None:

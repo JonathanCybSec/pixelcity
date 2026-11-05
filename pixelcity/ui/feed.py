@@ -24,7 +24,9 @@ BUBBLE_SECONDS = 3.2
 BUBBLE_SECONDS_PER_CHAR = 0.03
 JOURNAL_SIZE = 300
 # Événements trop fréquents ou trop techniques pour le journal de l'interface.
-HIDDEN_KINDS = VERBOSE_KINDS | {EventKind.SIM_STARTED}
+THINKING = "…"
+THINKING_SECONDS = 30.0
+HIDDEN_KINDS = VERBOSE_KINDS | {EventKind.SIM_STARTED, EventKind.CHAT_THINKING}
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,6 +40,8 @@ class Bubble:
 
     @property
     def lifetime(self) -> float:
+        if self.text == THINKING:
+            return THINKING_SECONDS  # remplacée par la première réplique dès qu'elle arrive
         return BUBBLE_SECONDS + BUBBLE_SECONDS_PER_CHAR * len(self.text)
 
 
@@ -64,6 +68,8 @@ class Feed:
         sim.events.subscribe(self._on_event)
 
     def _on_event(self, event: Event, *, live: bool = True) -> None:
+        if live and event.kind is EventKind.CHAT_THINKING and event.agent_id is not None:
+            self.bubbles[event.agent_id] = Bubble(THINKING, time.monotonic(), None)
         if live and event.kind is EventKind.SAY and event.agent_id is not None:
             to = event.data.get("to")
             self.bubbles[event.agent_id] = Bubble(

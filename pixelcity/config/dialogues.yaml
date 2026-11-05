@@ -60,3 +60,24 @@ goodbye:
 out_of_stock:
   - "Désolé, il n'y en a plus pour aujourd'hui !"
   - "Ah, je viens de vendre le dernier, désolé !"
+
+# Rencontres en ville, quand le LLM est désactivé ou injoignable.
+street:
+  opener:
+    - "Tiens, salut ! Ça va ?"
+    - "Oh, bonjour ! Quelle surprise."
+    - "Hé ! Tu tombes bien."
+    - "Bonjour ! Belle journée, non ?"
+  reply:
+    - "Salut ! Oui, ça va bien, et toi ?"
+    - "Bonjour ! Pas mal, la routine."
+    - "Ah, content de te voir !"
+    - "Ça va, un peu fatigué mais ça va."
+  need:
+    - "Bon, je file : {need}."
+    - "Je ne vais pas traîner, {need}."
+    - "Pardon, mais {need}."
+  closer:
+    - "Allez, à plus tard !"
+    - "Bonne journée, à bientôt !"
+    - "On se voit bientôt !"

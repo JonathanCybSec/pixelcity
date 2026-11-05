@@ -149,11 +149,35 @@ sequenceDiagram
     D-->>D: rencontre client-vendeur : la relation évolue
 ```
 
-Comme une poignée de main réseau (SYN, SYN-ACK, ACK), rien ne se passe tant que les deux ne sont pas en place. Sans caissière, la caisse du supermarché (`self_service: true`) passe en libre-service au bout de deux minutes. À l'étape 3, les répliques scriptées (`dialogues.yaml`) seront remplacées par une conversation générée par les LLM, sur ce même mécanisme de rencontre.
+Comme une poignée de main réseau (SYN, SYN-ACK, ACK), rien ne se passe tant que les deux ne sont pas en place. Sans caissière, la caisse du supermarché (`self_service: true`) passe en libre-service au bout de deux minutes. Depuis l'étape 3, le comptoir lance une conversation (section 8 bis) et attend qu'elle se termine avant de remettre l'article.
 
 ## 8. Relations
 
 Chaque service au comptoir est une rencontre (`sim/relations.py`) : la familiarité augmente, l'affinité bouge selon la compatibilité des caractères (Big Five : agréabilité et extraversion aident, ouvertures proches aussi, névrosisme complique). L'effet des premières rencontres est le plus fort. Paliers : froid, connaissance, sympathie, amitié, grande amitié. Choix assumé pour démarrer : une affinité symétrique par paire.
+
+## 8 bis. Conversations par LLM local (étape 3)
+
+Paquet `pixelcity/llm/` (sans pygame, sans la boucle) et `sim/conversation.py` (l'intégration).
+
+```
+comptoir / rencontre en ville
+        │ photo figée (ConversationRequest : personas, lieu, heure, relation, souvenir, flirt autorisé ?)
+        ▼
+DialogueBackend ── ScriptedBackend : dialogues.yaml, instantané, reproductible (tests, repli)
+                └─ OllamaBackend : 1 fil de travail → POST /api/chat avec un schéma JSON
+        │ Pending (on vient vérifier à chaque tick : polling)
+        ▼
+réponse validée (prompts.parse_result) → bulles espacées selon leur longueur → effet sur la relation
+```
+
+- **Jamais d'appel réseau dans la boucle** : une génération prend plusieurs secondes, la fenêtre gèlerait. La requête part dans un `ThreadPoolExecutor` à un seul fil (le GPU ne génère qu'une chose à la fois) ; pendant l'attente, une bulle « … ». La réponse n'est appliquée au monde que pendant un tick.
+- **Le LLM propose, la simulation dispose** : on lui dit si l'article est en stock ; sa sortie est contrainte par un schéma JSON (`format` d'Ollama), puis nettoyée comme une entrée utilisateur (orateurs connus seulement, répliques coupées à 110 caractères, affinité bornée à ±6, flirt ignoré s'il n'était pas autorisé).
+- **Flirt** : uniquement entre deux adultes (18 ans ou plus), tous deux `romance: true`, sans autre partenaire, et qui s'apprécient déjà (affinité ≥ 20). La règle est dans le code (`flirt_allowed`), pas dans le prompt : un prompt se contourne, un `if` non.
+- **Rencontres en ville** : à chaque minute simulée, deux habitants à deux cases l'un de l'autre, dans la rue, au parc, au café ou à la salle de sport, peuvent s'arrêter. La chance dépend de leur extraversion et de leur relation ; délais de 6 h par paire et 45 min par habitant ; jamais pendant une envie pressante ni en servant. Les deux s'arrêtent (`Agent.conversation`), se font face, puis reprennent leur tâche là où elle en était.
+- **Souvenir** : le LLM résume chaque échange en une phrase (`Relation.summary`), redonnée au prochain prompt de la même paire. C'est l'embryon de la mémoire de l'étape 5.
+- **Repli** : Ollama éteint, modèle absent, JSON invalide, ou plus de 20 minutes simulées d'attente (aux vitesses x10 et x30) → répliques scriptées. La pastille sous l'horloge dit qui écrit.
+- **Réglages** : `.env` (voir `.env.example`), lu sans dépendance ; les variables d'environnement l'emportent. Un habitant peut avoir son modèle (`llm_model` dans `agents.yaml`).
+- **Déterminisme** : garanti avec le script (les tests). Avec un LLM, la graine est transmise à Ollama mais la génération dépend du matériel et du temps de réponse : on l'accepte, c'est le prix du langage naturel.
 
 ## 9. Le planificateur
 
@@ -207,6 +231,15 @@ Les YAML sont validés par Pydantic au démarrage (`extra="forbid"`, `frozen=Tru
 | Les bulles du passé | À l'ouverture de la fenêtre, l'interface rejouait le journal… et affichait des répliques vieilles de trois heures. | Le rejeu alimente le journal, pas les bulles. |
 | Liens symboliques sous Windows | Un test créait des liens symboliques : il faut des droits d'administrateur sous Windows. | Inutile : le noyau ne lit que le XML de la carte. |
 
+## Pièges rencontrés pendant l'étape 3
+
+| Piège | Parade |
+|---|---|
+| `emit(kind, ..., kind=...)` : un argument nommé `kind` dans les données entrait en collision avec le paramètre `kind` de `emit` | Donnée renommée `mode`. |
+| Les tests de comptoir faisaient avancer les comptoirs sans les conversations | Le helper de test appelle aussi `conversations.update()`. |
+| Une requête abandonnée occupait encore le fil du LLM | `Pending.cancel()` annule la génération si elle n'a pas commencé. |
+| PyInstaller ne trouvait pas `pixelcity.main` | `--paths .` lors du build. |
+
 ## Pièges de l'étape 1 (toujours d'actualité)
 
 | Piège | Parade |
@@ -218,8 +251,8 @@ Les YAML sont validés par Pydantic au démarrage (`extra="forbid"`, `frozen=Tru
 
 ## Préparé pour la suite
 
-- `Planner` (Protocol) et les comptoirs : points de branchement des LLM à l'étape 3 (plans et conversations).
-- `Relations` : l'affinité sera nourrie par les conversations ; le flirt n'y sera possible qu'entre adultes (vérifié dans le code).
+- `Planner` (Protocol) : point de branchement d'un planificateur par LLM (étape 5).
+- `Persona` et `speech_style`, `llm_model`, `romance`, `partner` : ce que le studio de l'étape 4 permettra de régler.
 - `AgentModel.sprite` et la colorisation de pixel-agents : base du studio de création d'habitants (étape 4).
 - `Simulation.apply()` : point d'entrée du mode Dieu et des réponses asynchrones des LLM.
 - `resources.py` et les `package-data` : chemins et données prêts pour PyInstaller.
@@ -229,5 +262,5 @@ Les YAML sont validés par Pydantic au démarrage (`extra="forbid"`, `frozen=Tru
 - Tous les habitants sont mis à jour à chaque tick. Avec 100 habitants, une journée simulée prendrait ~6 s en headless ; une mise à jour événementielle viendra avec l'optimisation (un habitant qui dort n'a rien à calculer).
 - Les habitants se traversent (pas de collisions entre eux), comme dans Smallville et pixel-agents.
 - Une seule caisse, un seul vendeur par commerce : pendant la pause déjeuner du barista, les clients attendent puis renoncent.
-- L'affinité est symétrique ; les répliques sont scriptées.
+- L'affinité est symétrique. Les conversations ne changent pas encore les plans (« on se retrouve au café demain » n'est pas suivi d'effet) : ce sera pour l'étape 5, avec la mémoire.
 - Sous Windows avec un écran haute densité, la fenêtre peut être mise à l'échelle par le système (image légèrement floue).
