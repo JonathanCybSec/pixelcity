@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pixelcity"
-version = "0.1.0"
+version = "0.2.0"
 description = "Bac à sable de simulation de vie en pixel art, avec des habitants pilotés par des IA."
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
@@ -34,7 +34,19 @@ include = ["pixelcity*"]
 [tool.setuptools.package-data]
 # Les données (YAML, carte, tileset) doivent voyager avec le code :
 # indispensable pour `pip install .` aujourd'hui et pour PyInstaller à l'étape 8.
-pixelcity = ["config/*.yaml", "assets/maps/*"]
+pixelcity = [
+    "config/*.yaml",
+    "assets/maps/*.tmx",
+    "assets/maps/*.png",
+    "assets/maps/walls/*.png",
+    "assets/fonts/*",
+    "assets/pixel_agents/*.md",
+    "assets/pixel_agents/LICENSE",
+    "assets/pixel_agents/*/*.png",
+    "assets/pixel_agents/furniture/*/*",
+    "assets/pixelcity/ground/*.png",
+    "assets/pixelcity/furniture/*/*",
+]
 
 # --------------------------------------------------------------------------- #
 # Outils
