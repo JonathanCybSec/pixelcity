@@ -1,154 +1,251 @@
-"""Rendu de la ville : carte pré-rendue, étiquettes des lieux, habitants.
+"""Rendu du monde : tout est dessiné à la résolution du pixel art, puis agrandi.
+
+Principe (celui des jeux pixel art « pixel perfect ») :
+1. on dessine la portion visible du monde dans une petite image `frame`
+   où 1 pixel = 1 pixel de sprite (≈ 430×240 à l'écran 1280×720 en zoom 3) ;
+2. on l'agrandit d'un facteur ENTIER, au plus proche voisin ;
+3. on la pose à l'écran avec un décalage de quelques pixels écran, ce qui
+   rend le défilement fluide même si chaque sprite reste sur sa grille.
+
+Avantages : les pixels restent tous de la même taille (pas de scintillement),
+et le coût ne dépend pas du zoom (on trie et on dessine ~200 sprites de 16 px,
+puis UNE seule mise à l'échelle).
 
 Le renderer LIT l'état de la simulation et ne le modifie jamais.
-
-Optimisation principale : la carte ne bouge pas, donc on la dessine UNE
-fois dans une grande image (« baking »), une par niveau de zoom. Chaque
-image affichée ne fait alors qu'une seule copie au lieu de 1 536 tuiles.
 """
 
 from __future__ import annotations
 
+import math
+from dataclasses import dataclass
+
 import pygame
-import pytmx  # ici, pytmx a le droit d'importer pygame : on est dans le moteur
 
 from pixelcity.agents.agent import Agent
 from pixelcity.engine.camera import Camera
+from pixelcity.engine.lighting import Lighting
+from pixelcity.engine.scene import Prop, Scene, bake_ground, build_scene
+from pixelcity.engine.sprites import (
+    IDLE_FRAME,
+    READ_FRAMES,
+    TILE,
+    TYPE_FRAMES,
+    WALK_CYCLE,
+    SpriteBank,
+)
+from pixelcity.resources import assets_dir
 from pixelcity.sim.simulation import Simulation
-from pixelcity.world.place import Place
+from pixelcity.sim.types import Anim, Pose
 
-BACKGROUND = (24, 26, 32)
-LABEL_TEXT = (245, 242, 230)
-LABEL_BG = (20, 22, 28, 170)
+BACKGROUND = (22, 24, 30)
+SITTING_OFFSET = 6  # pixel-agents : un personnage assis descend de 6 px dans sa chaise
+CHARACTER_Z_OFFSET = TILE / 2 + 0.5  # tri : bas de la tuile, pour passer devant la chaise
+WALK_PIXELS_PER_FRAME = 5  # la marche s'anime à la distance parcourue, pas au temps
+HEAD_ON_PILLOW_Y = 11  # position de la tête dans le sprite du lit (16×48)
+OUTLINE_COLOR = (255, 255, 255, 235)
 
 
-def hex_to_rgb(color: str) -> tuple[int, int, int]:
-    return int(color[1:3], 16), int(color[3:5], 16), int(color[5:7], 16)
+@dataclass(slots=True)
+class Drawable:
+    z: float
+    x: int
+    y: int
+    image: pygame.Surface
 
 
-class Renderer:
+class WorldRenderer:
     def __init__(self, sim: Simulation) -> None:
         world = sim.world
-        self.tile_w, self.tile_h = world.tile_width, world.tile_height
-        self.world_size = (world.width * self.tile_w, world.height * self.tile_h)
-        self._base = self._bake_map(sim)
-        self._baked: dict[int, pygame.Surface] = {1: self._base}
-        self._label_font = pygame.font.Font(None, 18)
-        self._labels: dict[str, pygame.Surface] = {
-            place.id: self._make_label(place.name) for place in world.places.values()
-        }
-        self._sprites: dict[tuple[str, int], pygame.Surface] = {}
-
-    # ------------------------------------------------------------------ #
-    # Préparation (une seule fois)
-    # ------------------------------------------------------------------ #
-    def _bake_map(self, sim: Simulation) -> pygame.Surface:
-        tmx = pytmx.util_pygame.load_pygame(str(sim.world.map_path))
-        surface = pygame.Surface(self.world_size).convert()
-        surface.fill(BACKGROUND)
-        for layer in tmx.visible_layers:
-            if isinstance(layer, pytmx.TiledTileLayer):
-                for x, y, image in layer.tiles():
-                    surface.blit(image, (x * self.tile_w, y * self.tile_h))
-        return surface
-
-    def _make_label(self, text: str) -> pygame.Surface:
-        rendered = self._label_font.render(text, True, LABEL_TEXT)
-        padding = 4
-        label = pygame.Surface(
-            (rendered.get_width() + 2 * padding, rendered.get_height() + 2), pygame.SRCALPHA
+        assets = assets_dir()
+        self.bank = SpriteBank(
+            assets / "pixel_agents" / "characters", world.map_path.parent / "walls"
         )
-        pygame.draw.rect(label, LABEL_BG, label.get_rect(), border_radius=4)
-        label.blit(rendered, (padding, 1))
-        return label
-
-    def baked_map(self, zoom: int) -> pygame.Surface:
-        """Carte à l'échelle `zoom`, mise en cache.
-
-        `transform.scale` agrandit au plus proche voisin : les pixels restent
-        nets. (`smoothscale` lisserait et rendrait le pixel art flou.)
-        """
-        surface = self._baked.get(zoom)
-        if surface is None:
-            width, height = self.world_size
-            surface = pygame.transform.scale(self._base, (width * zoom, height * zoom))
-            self._baked[zoom] = surface
-        return surface
-
-    def _sprite(self, agent: Agent, zoom: int) -> pygame.Surface:
-        """Placeholder : un rond coloré avec l'initiale. Mis en cache par zoom."""
-        key = (agent.id, zoom)
-        sprite = self._sprites.get(key)
-        if sprite is None:
-            size = self.tile_w * zoom
-            sprite = pygame.Surface((size, size), pygame.SRCALPHA)
-            color = hex_to_rgb(agent.profile.color)
-            outline = tuple(int(c * 0.55) for c in color)
-            center = (size // 2, size // 2)
-            radius = max(3, int(size * 0.42))
-            pygame.draw.circle(sprite, outline, center, radius)
-            pygame.draw.circle(sprite, color, center, max(2, radius - max(1, zoom)))
-            if zoom >= 2:
-                font = pygame.font.Font(None, max(12, int(size * 0.75)))
-                letter = font.render(agent.name[0], True, (255, 255, 255))
-                sprite.blit(letter, letter.get_rect(center=(center[0], center[1] + 1)))
-            self._sprites[key] = sprite
-        return sprite
+        self.scene: Scene = build_scene(world, self.bank, bake_ground(world.map_path))
+        self.world_size = (self.scene.width, self.scene.height)
+        self.lighting = Lighting(sim, self.scene)
+        self._frame: pygame.Surface | None = None
+        self._scaled: pygame.Surface | None = None
+        self._outlines: dict[int, pygame.Surface] = {}
+        self.selected_id: str | None = None
+        self.hovered_id: str | None = None
+        self.last_origin = (0, 0)  # coin haut-gauche du monde dessiné (en pixels monde)
 
     # ------------------------------------------------------------------ #
-    # Dessin (à chaque image)
+    # Positions (aussi utilisées par l'interface pour placer les bulles)
     # ------------------------------------------------------------------ #
-    def draw(self, screen: pygame.Surface, sim: Simulation, camera: Camera, alpha: float) -> None:
-        screen.fill(BACKGROUND)
-        screen.blit(self.baked_map(camera.zoom), camera.offset())
-        for place in sim.world.places.values():
-            self._draw_place(screen, sim, place, camera)
-        self._draw_agents(screen, sim, camera, alpha)
-
-    def agent_screen_pos(self, agent: Agent, camera: Camera, alpha: float) -> tuple[int, int]:
-        """Position écran du CENTRE de l'agent, interpolée entre les deux derniers ticks."""
+    def agent_world_pos(self, agent: Agent, alpha: float) -> tuple[float, float]:
+        """Position des PIEDS de l'habitant, en pixels monde, interpolée entre deux ticks."""
         (px, py), (cx, cy) = agent.prev_pos, agent.pos
         x = px + (cx - px) * alpha
         y = py + (cy - py) * alpha
-        return camera.world_to_screen((x + 0.5) * self.tile_w, (y + 0.5) * self.tile_h)
+        return (x + 0.5) * TILE, (y + 0.5) * TILE
 
-    def _draw_place(
-        self, screen: pygame.Surface, sim: Simulation, place: Place, camera: Camera
-    ) -> None:
-        area = place.area
-        top_center_x = (area.x + area.width / 2) * self.tile_w
-        label = self._labels[place.id]
-        sx, sy = camera.world_to_screen(top_center_x, area.y * self.tile_h)
-        screen.blit(label, (sx - label.get_width() // 2, sy - label.get_height() - 2))
-        if place.outdoor or not place.occupants:
-            return
-        # Les habitants à l'intérieur sont cachés : une pastille de leur couleur
-        # au-dessus de la porte indique qui est là.
-        ex, ey = place.entrances[0]
-        dot = max(3, 2 * camera.zoom)
-        door_x, door_y = camera.world_to_screen((ex + 0.5) * self.tile_w, ey * self.tile_h)
-        count = len(place.occupants)
-        start_x = door_x - (count - 1) * (dot * 2 + 2) // 2
-        above_door = (
-            door_y - dot - 2 if ey > area.y else door_y + self.tile_h * camera.zoom + dot + 2
-        )
-        for index, agent_id in enumerate(place.occupants):
-            color = hex_to_rgb(sim.agents[agent_id].profile.color)
-            center = (start_x + index * (dot * 2 + 2), above_door)
-            pygame.draw.circle(screen, (15, 15, 20), center, dot + 1)
-            pygame.draw.circle(screen, color, center, dot)
+    def agent_head_screen(self, agent: Agent, camera: Camera, alpha: float) -> tuple[int, int]:
+        """Point écran au-dessus de la tête (pour une bulle ou un marqueur)."""
+        x, y = self.agent_world_pos(agent, alpha)
+        top = y - 30 + (SITTING_OFFSET if agent.pose is Pose.SIT else 0)
+        if agent.pose is Pose.LIE:
+            top = y - 8
+        return camera.world_to_screen(x, top)
 
-    def _draw_agents(
-        self, screen: pygame.Surface, sim: Simulation, camera: Camera, alpha: float
+    # ------------------------------------------------------------------ #
+    # Dessin
+    # ------------------------------------------------------------------ #
+    def draw(
+        self,
+        screen: pygame.Surface,
+        sim: Simulation,
+        camera: Camera,
+        alpha: float,
+        seconds: float,
     ) -> None:
-        visible = [agent for agent in sim.agents.values() if sim.is_visible(agent)]
-        positioned = [(self.agent_screen_pos(agent, camera, alpha), agent) for agent in visible]
-        # Tri par y (« y-sorting ») : celui qui est plus bas à l'écran passe devant.
-        positioned.sort(key=lambda item: item[0][1])
-        for (sx, sy), agent in positioned:
-            sprite = self._sprite(agent, camera.zoom)
-            size = sprite.get_width()
-            shadow = pygame.Rect(0, 0, int(size * 0.6), max(2, size // 6))
-            shadow.center = (sx, sy + int(size * 0.38))
-            pygame.draw.ellipse(screen, (20, 30, 20), shadow)
-            screen.blit(sprite, (sx - size // 2, sy - size // 2))
+        zoom = camera.zoom
+        ox, oy = camera.offset()
+        sw, sh = screen.get_size()
+        left = math.floor(-ox / zoom)
+        top = math.floor(-oy / zoom)
+        width = math.ceil(sw / zoom) + 2
+        height = math.ceil(sh / zoom) + 2
+        frame = self._frame_surface(width, height)
+        frame.fill(BACKGROUND)
+        view = pygame.Rect(left, top, width, height)
+        frame.blit(self.scene.ground, (0, 0), area=view)
+
+        drawables = self._collect(sim, view, alpha, seconds)
+        drawables.sort(key=lambda d: d.z)
+        blit = frame.blit
+        for drawable in drawables:
+            blit(drawable.image, (drawable.x - left, drawable.y - top))
+
+        self.lighting.apply(frame, view, sim, seconds)
+
+        scaled = self._scaled_surface(width * zoom, height * zoom)
+        pygame.transform.scale(frame, scaled.get_size(), scaled)
+        screen.fill(BACKGROUND)
+        screen.blit(scaled, (left * zoom + ox, top * zoom + oy))
+        self.last_origin = (left, top)
+
+    def _collect(
+        self, sim: Simulation, view: pygame.Rect, alpha: float, seconds: float
+    ) -> list[Drawable]:
+        drawables: list[Drawable] = []
+        sleepers: dict[str, Agent] = {}
+        for agent in sim.agents.values():
+            if agent.pose is Pose.LIE and agent.spot is not None:
+                sleepers[agent.spot.furniture.uid] = agent
+        for prop in self.scene.props_in(view):
+            furniture = prop.furniture
+            sleeper = sleepers.get(furniture.uid) if furniture is not None else None
+            image = prop.image(seconds)
+            if sleeper is not None:
+                image = self._bed_with_sleeper(prop, image, sleeper)
+            drawables.append(Drawable(prop.z, prop.x, prop.y, image))
+        for agent in sim.agents.values():
+            if agent.pose in (Pose.HIDDEN, Pose.LIE):
+                continue
+            drawable = self._character(agent, alpha, seconds)
+            if drawable is not None and view.colliderect(
+                drawable.x, drawable.y, drawable.image.get_width(), drawable.image.get_height()
+            ):
+                drawables.append(drawable)
+                if agent.id in (self.selected_id, self.hovered_id):
+                    outline = self._outline(drawable.image)
+                    drawables.append(
+                        Drawable(drawable.z - 0.01, drawable.x - 1, drawable.y - 1, outline)
+                    )
+        return drawables
+
+    def _character(self, agent: Agent, alpha: float, seconds: float) -> Drawable | None:
+        sheet = self.bank.character(agent.profile.sprite)
+        x, y = self.agent_world_pos(agent, alpha)
+        facing = agent.facing
+        pose = agent.pose
+        bob = 0
+        if pose is Pose.WALK:
+            step = int((x + y) / WALK_PIXELS_PER_FRAME)
+            index = WALK_CYCLE[step % len(WALK_CYCLE)]
+        elif pose is Pose.RUN:
+            index = WALK_CYCLE[int(seconds / 0.1) % len(WALK_CYCLE)]
+        elif pose is Pose.SIT:
+            if agent.anim is Anim.INTERACT:
+                index = TYPE_FRAMES[int(seconds / 0.3) % 2]
+            elif agent.anim is Anim.EAT:
+                index = READ_FRAMES[int(seconds / 0.45) % 2]
+            elif agent.anim in (Anim.READ, Anim.TALK):
+                index = (READ_FRAMES if agent.anim is Anim.READ else TYPE_FRAMES)[
+                    int(seconds / 0.6) % 2
+                ]
+            else:
+                index = TYPE_FRAMES[0]
+        else:
+            index = IDLE_FRAME
+            if agent.anim in (Anim.INTERACT, Anim.TALK):
+                bob = int(seconds / 0.35) % 2  # un léger mouvement : il s'affaire
+        image = sheet.frame(facing, index)
+        sit = SITTING_OFFSET if pose is Pose.SIT else 0
+        draw_x = round(x - image.get_width() / 2)
+        draw_y = round(y + sit - image.get_height() - bob)
+        z = y + CHARACTER_Z_OFFSET
+        spot = agent.spot
+        if spot is not None and spot.is_seat and spot.furniture.spec.category != "chairs":
+            # Assis sur un banc, couché sur un tapis de course : devant l'objet.
+            prop = self.scene.by_furniture.get(spot.furniture.uid)
+            if prop is not None:
+                z = max(z, prop.z + 0.5)
+        return Drawable(z, draw_x, draw_y, image)
+
+    def _bed_with_sleeper(self, prop: Prop, bed: pygame.Surface, sleeper: Agent) -> pygame.Surface:
+        """Le lit + la tête du dormeur sur l'oreiller + la couverture par-dessus."""
+        composed = bed.copy()
+        sheet = self.bank.character(sleeper.profile.sprite)
+        composed.blit(sheet.head, (0, HEAD_ON_PILLOW_Y))
+        if prop.cover is not None:
+            composed.blit(prop.cover, (0, 0))
+        return composed
+
+    def _outline(self, image: pygame.Surface) -> pygame.Surface:
+        """Contour blanc d'1 pixel autour du sprite (personnage sélectionné)."""
+        key = id(image)
+        outline = self._outlines.get(key)
+        if outline is None:
+            mask = pygame.mask.from_surface(image)
+            silhouette = mask.to_surface(setcolor=OUTLINE_COLOR, unsetcolor=(0, 0, 0, 0))
+            outline = pygame.Surface(
+                (image.get_width() + 2, image.get_height() + 2), pygame.SRCALPHA
+            )
+            for dx, dy in ((0, 1), (2, 1), (1, 0), (1, 2)):
+                outline.blit(silhouette, (dx, dy))
+            self._outlines[key] = outline
+        return outline
+
+    # ------------------------------------------------------------------ #
+    # Surfaces réutilisées (allouer à chaque image coûte cher)
+    # ------------------------------------------------------------------ #
+    def _frame_surface(self, width: int, height: int) -> pygame.Surface:
+        if self._frame is None or self._frame.get_size() != (width, height):
+            self._frame = pygame.Surface((width, height))
+            if pygame.display.get_surface() is not None:
+                self._frame = self._frame.convert()
+        return self._frame
+
+    def _scaled_surface(self, width: int, height: int) -> pygame.Surface:
+        if self._scaled is None or self._scaled.get_size() != (width, height):
+            self._scaled = pygame.Surface((width, height))
+            if pygame.display.get_surface() is not None:
+                self._scaled = self._scaled.convert()
+        return self._scaled
+
+    def pick_agent(
+        self, sim: Simulation, camera: Camera, screen_pos: tuple[int, int], alpha: float
+    ) -> Agent | None:
+        """L'habitant sous la souris (le plus « devant » s'ils se chevauchent)."""
+        wx, wy = camera.screen_to_world(*screen_pos)
+        best: tuple[float, Agent] | None = None
+        for agent in sim.agents.values():
+            if agent.pose is Pose.HIDDEN:
+                continue
+            x, y = self.agent_world_pos(agent, alpha)
+            top = y - (12 if agent.pose is Pose.LIE else 28)
+            if x - 7 <= wx <= x + 7 and top <= wy <= y + 2 and (best is None or y > best[0]):
+                best = (y, agent)
+        return best[1] if best else None
