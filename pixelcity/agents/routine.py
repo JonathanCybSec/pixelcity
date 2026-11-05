@@ -38,7 +38,7 @@ from pixelcity.agents.tasks import Phase, Task, TaskKind
 from pixelcity.sim.context import SimContext
 from pixelcity.sim.events import EventKind
 from pixelcity.sim.service import server_of
-from pixelcity.sim.types import ActivityType, NeedKind, PlaceKind, Pose, Weekday
+from pixelcity.sim.types import ActivityType, Anim, NeedKind, PlaceKind, Pose, Weekday
 from pixelcity.world.place import Access, Place
 
 ANTICIPATION_HORIZON = 180  # au-delà, inutile d'estimer le trajet
@@ -84,6 +84,11 @@ def update_agent(agent: Agent, ctx: SimContext, planner: Planner) -> None:
 
     task = agent.task
     place_before = agent.place_id
+    if agent.conversation is not None:
+        # En pleine discussion : on reste sur place. Les besoins continuent de
+        # baisser, et une envie pressante attendra la fin de l'échange (court).
+        agent.anim = Anim.TALK
+        task = None
     if task is not None:
         run_task(agent, task, ctx)
     if agent.place_id is not None and agent.place_id != place_before:

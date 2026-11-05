@@ -42,6 +42,7 @@ class Agent:
     anim: Anim = Anim.IDLE
     spot: Spot | None = None  # la place occupée en ce moment (chaise, lit, comptoir...)
     speech: Speech | None = None
+    conversation: int | None = None  # conversation en ville en cours (on s'arrête pour parler)
 
     # --- Où il est, ce qu'il veut faire ---------------------------------------------
     place_id: str | None = None

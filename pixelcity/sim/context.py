@@ -18,6 +18,9 @@ from pixelcity.sim.rng import RngRegistry
 from pixelcity.sim.service import ServiceDesk
 from pixelcity.world.world import World
 
+if TYPE_CHECKING:
+    from pixelcity.sim.conversation import Conversations
+
 if TYPE_CHECKING:  # uniquement pour mypy : évite un import circulaire à l'exécution
     from pixelcity.agents.agent import Agent
 
@@ -35,6 +38,7 @@ class SimContext:
     walk_tiles_per_tick: float
     hours_per_tick: float
     minutes_per_tick: float
+    conversations: Conversations
 
     @property
     def now(self) -> int:

@@ -49,6 +49,11 @@ class EventKind(StrEnum):
     SAY = "say"
     # Deux habitants changent de palier (font connaissance, deviennent amis...).
     RELATION = "relation"
+    # Étape 3 : les conversations (au comptoir et en ville) et le flirt.
+    CHAT_STARTED = "chat_started"
+    CHAT_DONE = "chat_done"
+    FLIRT = "flirt"
+    CHAT_THINKING = "chat_thinking"  # le LLM réfléchit : bulle « … »
 
 
 @dataclass(frozen=True, slots=True)
