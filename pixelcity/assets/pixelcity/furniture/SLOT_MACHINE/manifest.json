@@ -1,0 +1,49 @@
+{
+  "id": "SLOT_MACHINE",
+  "name": "Machine à sous",
+  "category": "casino",
+  "canPlaceOnWalls": false,
+  "canPlaceOnSurfaces": false,
+  "backgroundTiles": 1,
+  "type": "group",
+  "groupType": "state",
+  "members": [
+    {
+      "type": "asset",
+      "id": "SLOT_MACHINE_OFF",
+      "file": "SLOT_MACHINE_OFF.png",
+      "width": 16,
+      "height": 32,
+      "footprintW": 1,
+      "footprintH": 2,
+      "state": "off"
+    },
+    {
+      "type": "group",
+      "groupType": "animation",
+      "state": "on",
+      "members": [
+        {
+          "type": "asset",
+          "id": "SLOT_MACHINE_ON_1",
+          "file": "SLOT_MACHINE_ON_1.png",
+          "width": 16,
+          "height": 32,
+          "footprintW": 1,
+          "footprintH": 2,
+          "frame": 0
+        },
+        {
+          "type": "asset",
+          "id": "SLOT_MACHINE_ON_2",
+          "file": "SLOT_MACHINE_ON_2.png",
+          "width": 16,
+          "height": 32,
+          "footprintW": 1,
+          "footprintH": 2,
+          "frame": 1
+        }
+      ]
+    }
+  ]
+}

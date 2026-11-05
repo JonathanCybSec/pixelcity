@@ -350,7 +350,7 @@ class StepModel(StrictModel):
     switch_on: bool = False
     distinct: bool = False  # un autre objet qu'à l'étape précédente
     # Étape 6 bis : gestes aux conséquences gérées par `sim/life.py`.
-    special: Literal["steal", "beg", "job_search"] | None = None
+    special: Literal["steal", "beg", "job_search", "gamble"] | None = None
     steal: Slug | None = None  # l'article qu'on tente de voler
 
     @model_validator(mode="after")

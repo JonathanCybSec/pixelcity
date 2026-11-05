@@ -23,34 +23,83 @@ def _persona() -> Persona:
     )
 
 
-def test_les_intentions_de_l_ia_sont_filtrees() -> None:
+def test_le_programme_de_l_ia_est_filtre() -> None:
     req = IntentionRequest(
         _persona(),
         (),
         "mardi",
-        "Bureaux, 09:00-17:30, 15 €/h",
+        "Bureaux, 09:00-17:30",
         (Option("phone", "téléphone (420 €)"),),
-        (Option("beg", "faire la manche"), Option("park", "parc")),
+        (Option("casino", "casino"), Option("park", "parc"), Option("work", "travail")),
     )
     schema = intention_schema(req)
-    assert schema["properties"]["activities"]["items"]["enum"] == ["beg", "park"]
+    assert schema["properties"]["plan"]["items"]["properties"]["activite"]["enum"] == [
+        "casino",
+        "park",
+        "work",
+        "phone",
+    ]
     got = parse_intentions(
         req,
         {
-            "work": False,
-            "purchases": ["phone", "yacht"],
-            "activities": ["voler_banque", "beg"],
-            "thought": "Pas envie d'y aller.",
+            "pour_contre": [
+                {"choix": "Sécher le boulot", "pour": "Le casino !", "contre": "Pas payé"}
+            ],
+            "plan": [
+                {"heure": "15:00", "activite": "casino"},
+                {"heure": "10h", "activite": "phone"},
+                {"heure": "11:00", "activite": "braquer_la_banque"},
+            ],
+            "budget_casino": 80,
+            "pensee": "Aujourd'hui, je tente ma chance.",
         },
         "test",
     )
-    assert got == Intentions(False, ("phone",), ("beg",), "Pas envie d'y aller.", "test")
+    assert got.schedule == ((600, "phone"), (900, "casino"))
+    assert got.work is False and got.purchases == ("phone",) and got.casino_budget == 80
+    assert got.pros_cons[0].choice == "Sécher le boulot"
+
+
+def test_la_journee_suit_le_programme_de_l_ia(make_sim: Callable[..., Simulation]) -> None:
+    sim = make_sim()
+    lea = sim.agents["lea"]
+    run_to(sim, MONDAY, 21.1)  # après la décision du soir (ici : les règles de secours)
+    # Mardi : son « IA » ne prévoit pas le travail, mais du shopping et le casino.
+    lea.intentions[1] = Intentions(
+        work=False,
+        schedule=((10 * 60 + 30, "clothes"), (15 * 60, "casino")),
+        thought="Je prends ma journée.",
+        source="test",
+        casino_budget=60,
+    )
+    run_to(sim, MONDAY + 1, 0.2)
+    labels = [block.label for block in lea.plan.blocks] if lea.plan else []
+    assert "travail" not in labels
+    assert "casino" in labels and any("vêtements" in label for label in labels)
+    run_to(sim, MONDAY + 1, 18.0)
+    assert "clothes" in lea.possessions
+    assert events_of(sim, EventKind.GAMBLED, "lea")
+
+
+def test_gagner_au_casino_donne_envie_d_y_retourner(make_sim: Callable[..., Simulation]) -> None:
+    from pixelcity.sim.life import _Session
+
+    sim = make_sim()
+    paul = sim.agents["paul"]
+    sim.life._sessions["paul"] = _Session(budget=50, net=300, rounds=5)
+    sim.life._end_session(sim.ctx, paul)
+    after_win = paul.cravings["casino"]
+    assert after_win > 0.3
+    sim.life._sessions["paul"] = _Session(budget=50, net=-80, rounds=8, chased=True)
+    sim.life._end_session(sim.ctx, paul)
+    assert paul.cravings["casino"] > after_win  # « il faut que je me refasse »
+    assert any("refaire" in m.text for m in paul.memory.memories)
 
 
 def _broke_scenario(config: GameConfig, money: float = -200.0) -> Simulation:
     scenario = sc.default_scenario(config)
     scenario.agents.append(
-        sc.AgentDraft(name="Noah Nguyen", age=23, job="sans_emploi", home="mimosas_1", money=money)
+        sc.AgentDraft(name="Noah Nguyen", age=23, job="sans_emploi", home="mimosas_2", money=money)
     )
     return Simulation(sc.apply(scenario, config))
 
@@ -118,7 +167,7 @@ def test_faim_sans_le_sou_l_habitant_decide(config: GameConfig) -> None:
     run_to(sim, MONDAY, 10.0)
     noah.needs.values[NeedKind.HUNGER] = 5.0
     noah.money = 0.0
-    fridge = sim.world.places["mimosas_1"].container_with("provisions")
+    fridge = sim.world.places["mimosas_2"].container_with("provisions")
     assert fridge is not None
     fridge.take("provisions", fridge.count("provisions"))
     sim.run_ticks(sim.clock.ticks_per_minute * 20)
@@ -135,3 +184,90 @@ def test_l_argent_vient_de_quelqu_un(make_sim: Callable[..., Simulation]) -> Non
     assert flows[("l'État", "habitants")] > 0  # la retraite de Paul
     assert flows[("la clientèle extérieure", "Boulangerie du Coin")] > 0
     assert sim.economy.accounts["boulangerie"] > 0
+
+
+# --------------------------------------------------------------------------- #
+# Avec une « IA » : un faux serveur Ollama qui compose des journées
+# --------------------------------------------------------------------------- #
+def test_avec_l_ia_chaque_habitant_compose_sa_journee(config: GameConfig) -> None:
+    import json
+    import threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+    from typing import Any
+
+    from pixelcity.llm.backends import OllamaBackend, ScriptedBackend
+    from pixelcity.llm.settings import LlmSettings
+
+    class FakeMind(BaseHTTPRequestHandler):
+        def log_message(self, *args: object) -> None:
+            pass
+
+        def _send(self, payload: dict[str, Any]) -> None:
+            body = json.dumps(payload).encode()
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def do_GET(self) -> None:
+            self._send({"models": [{"name": "fake:latest"}]})
+
+        def do_POST(self) -> None:
+            request = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            schema = request["format"]["properties"]
+            if "plan" in schema:  # une journée : la flemme, puis le casino
+                reply: dict[str, Any] = {
+                    "pour_contre": [
+                        {
+                            "choix": "Aller au casino",
+                            "pour": "Je peux gagner gros",
+                            "contre": "Je peux tout perdre",
+                        }
+                    ],
+                    "plan": [
+                        {"heure": "10:00", "activite": "park"},
+                        {"heure": "15:00", "activite": "casino"},
+                    ],
+                    "budget_casino": 40,
+                    "pensee": "Demain, je me fais plaisir.",
+                }
+            elif "choice" in schema:
+                reply = {"choice": schema["choice"]["enum"][0], "thought": "Bon."}
+            elif "insights" in schema:
+                reply = {"insights": ["Je crois que j'aime le risque."]}
+            else:
+                prompt = request["messages"][1]["content"]
+                ids = [part.split("»")[0] for part in prompt.split("(id « ")[1:]]
+                reply = {
+                    "lines": [
+                        {"speaker": ids[0], "text": "Salut !"},
+                        {"speaker": ids[1], "text": "Salut, ça va ?"},
+                    ],
+                    "affinity_delta": 1,
+                    "flirt": False,
+                    "summary": "Bonjour.",
+                }
+            content = json.dumps(reply)
+            self._send({"message": {"role": "assistant", "content": content}})
+
+    server = HTTPServer(("127.0.0.1", 0), FakeMind)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        host = f"http://127.0.0.1:{server.server_address[1]}"
+        backend = OllamaBackend(
+            LlmSettings(host=host, model="fake", timeout_s=5),
+            ScriptedBackend(config.dialogues),
+            blocking=True,
+        )
+        sim = Simulation(config, dialogue=backend)
+        run_to(sim, MONDAY + 1, 16.0)
+    finally:
+        server.shutdown()
+        sim.close()
+    lea = sim.agents["lea"]
+    tuesday = lea.intentions[1]
+    assert tuesday.source == "fake" and tuesday.work is False  # la flemme : pas de travail
+    assert lea.deliberation[0].pros == "Je peux gagner gros"
+    labels = [b.label for b in lea.plan.blocks] if lea.plan else []
+    assert "casino" in labels and "travail" not in labels
+    assert events_of(sim, EventKind.INTENTION, "lea")[0].data["source"] == "fake"

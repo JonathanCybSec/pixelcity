@@ -89,6 +89,53 @@ places:
     jobs: 3  # postes
     employer: "Mairie (école publique)"
 
+  # --- Étape 6 ter : tentations ---------------------------------------------
+  - id: casino
+    name: Casino Le Lucky
+    kind: casino
+    capacity: 30
+    hours: "14:00-23:30"
+    activities: [leisure, toilet]
+    staff_activities: [work, toilet]
+    jobs: 2
+    employer: "Casino Le Lucky"
+    external_revenue: 60
+
+  - id: bar
+    name: Bar Le Zinc
+    kind: bar
+    capacity: 25
+    hours: "17:00-23:30"
+    activities: [leisure, eat, toilet]
+    staff_activities: [work, toilet]
+    jobs: 2
+    employer: "Bar Le Zinc"
+    external_revenue: 35
+
+  - id: boutique
+    name: Boutique Mode & Co
+    kind: boutique
+    capacity: 15
+    hours: "10:00-19:00"
+    days: [mon, tue, wed, thu, fri, sat]
+    activities: [shop]
+    staff_activities: [work]
+    jobs: 2
+    employer: "Mode & Co"
+    external_revenue: 45
+
+  - id: hitech
+    name: Hi-Tech Center
+    kind: electronics
+    capacity: 15
+    hours: "10:00-19:00"
+    days: [mon, tue, wed, thu, fri, sat]
+    activities: [shop]
+    staff_activities: [work]
+    jobs: 2
+    employer: "Hi-Tech Center"
+    external_revenue: 70
+
   # --- Loisirs -------------------------------------------------------------
   - id: salle_de_sport
     name: Salle de sport Olympe

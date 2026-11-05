@@ -26,6 +26,7 @@ from pixelcity.agents.plan import DayPlan, PlanBuilder
 from pixelcity.config.schemas import ActionsConfig, AgentModel
 from pixelcity.llm.types import Intentions
 from pixelcity.sim.appointments import Appointment
+from pixelcity.sim.options import DayOption
 from pixelcity.sim.types import MINUTES_PER_DAY, ActivityType, PlaceKind, Weekday
 from pixelcity.world.place import Place
 from pixelcity.world.world import World
@@ -95,6 +96,10 @@ class PlanningContext:
     homeless: bool = False
     money: float = 0.0
     prices: dict[str, float] = field(default_factory=dict)
+    # Étape 6 ter : le menu de la ville (options du jour) et, pour une
+    # replanification en cours de journée, la minute à partir de laquelle replanifier.
+    options: dict[str, DayOption] = field(default_factory=dict)
+    replan_from: int | None = None
 
 
 class Planner(Protocol):
@@ -115,6 +120,8 @@ class RuleBasedPlanner:
         shift = profile.work.schedule.get(today) if profile.work else None
         if shift and ctx.intentions is not None and not ctx.intentions.work:
             shift = None  # l'habitant a décidé de ne pas y aller : journée non payée
+        if ctx.intentions is not None and ctx.intentions.schedule and ctx.options:
+            return self._ai_day(agent, day_index, shift, ctx)
         if ctx.homeless:
             return self._homeless_day(agent, day_index, shift, ctx)
         works_tomorrow = profile.work is not None and tomorrow in profile.work.schedule
@@ -272,14 +279,10 @@ class RuleBasedPlanner:
             if price is None or price > money or until - builder.cursor < 75:
                 continue  # trop cher, finalement : on ne fait pas de dette pour ça
             start = builder.cursor
-            shop = self._pick_place(
-                ctx,
-                ActivityType.SHOP,
-                start,
-                start + 60,  # une heure : le trajet (parfois en bus) compris
-                agent.profile,
-                lambda _p, _k: 1.0,
-                kinds={PlaceKind.SUPERMARKET},
+            # Le magasin qui vend l'article, ouvert pendant l'heure du bloc (trajet compris).
+            shop = next(
+                (ctx.world.places[p] for p in _sellers(ctx, item) if _is_open_for(ctx, p, start)),
+                None,
             )
             if shop is None:
                 continue
@@ -321,6 +324,21 @@ class RuleBasedPlanner:
                         "se repose",
                         "relax_home" if not ctx.homeless else "linger",
                     )
+                case "casino" | "bar":
+                    kind = PlaceKind.CASINO if activity == "casino" else PlaceKind.BAR
+                    place = self._pick_place(
+                        ctx,
+                        ActivityType.LEISURE,
+                        start,
+                        start + 90,
+                        agent.profile,
+                        _leisure_weight,
+                        kinds={kind},
+                    )
+                    if place is not None:
+                        recipe = "casino" if activity == "casino" else "bar_evening"
+                        label = "casino" if activity == "casino" else "un verre au bar"
+                        builder.add(start + 90, ActivityType.LEISURE, place.id, label, recipe)
                 case "park" | "gym" | "cafe":
                     kind = {"park": PlaceKind.PARK, "gym": PlaceKind.GYM, "cafe": PlaceKind.CAFE}[
                         activity
@@ -339,6 +357,94 @@ class RuleBasedPlanner:
                         label, recipe = LEISURE[place.kind]
                         builder.add(start + duration, ActivityType.LEISURE, place.id, label, recipe)
                         visited.add(place.id)
+
+    def _ai_day(
+        self, agent: Agent, day_index: int, shift: tuple[int, int] | None, ctx: PlanningContext
+    ) -> DayPlan:
+        """La journée composée par l'IA de l'habitant, heure par heure.
+
+        Le corps garde ses exigences (dormir, se laver, manger le soir) ; tout le
+        reste suit le programme choisi. Chaque activité est recalée dans les
+        horaires d'ouverture ; une activité impossible (fermé, trop court) saute.
+        """
+        intentions = ctx.intentions
+        assert intentions is not None
+        profile = agent.profile
+        homeless = ctx.homeless
+        home = "parc" if homeless else profile.home
+        idle = "linger" if homeless else "relax_home"
+        builder = PlanBuilder(day_index)
+        chosen = [a for _m, a in intentions.schedule]
+        if ctx.replan_from is not None:
+            # Replanification : le passé ne bouge pas, on repart de maintenant.
+            builder.add(ctx.replan_from, ActivityType.RELAX, home, "…", idle)
+        else:
+            if shift:
+                wake = profile.sleep.wake
+            elif profile.sleep.weekend_wake is not None:
+                wake = profile.sleep.weekend_wake
+            else:
+                wake = min(profile.sleep.wake + 90, 11 * 60)
+            if "sleep_in" in chosen:
+                wake = min(wake + 120, 12 * 60)
+            sleep_recipe = "sleep_rough" if homeless else "sleep"
+            builder.add(wake, ActivityType.SLEEP, home, "sommeil", sleep_recipe)
+            if not homeless:
+                builder.add(
+                    wake + MORNING_MINUTES,
+                    ActivityType.HYGIENE,
+                    home,
+                    "toilette du matin",
+                    "morning",
+                )
+                builder.add(
+                    builder.cursor + BREAKFAST_MINUTES,
+                    ActivityType.EAT,
+                    home,
+                    "petit-déjeuner",
+                    "breakfast",
+                )
+        lunch = self._workday_lunch(agent, shift, ctx) if shift and "work" in chosen else None
+        bed = min(profile.sleep.bed, 23 * 60 + 30)
+        for minute, activity in intentions.schedule:
+            if activity == "sleep_in":
+                continue
+            if activity == "work":
+                if not shift or "work" not in chosen or builder.cursor > shift[0]:
+                    continue
+                leave = shift[0] - self._commute(agent, ctx) - DEPARTURE_MARGIN
+                if leave - builder.cursor >= 15:
+                    builder.add(leave, ActivityType.RELAX, home, "temps libre", idle)
+                self._workday(builder, agent, shift, lunch, ctx)
+                continue
+            option = ctx.options.get(activity)
+            if option is None:
+                continue
+            open_from, open_until = option.window
+            start = max(minute, builder.cursor, open_from)
+            end = min(start + option.minutes, open_until, bed)
+            if end - start < 20:
+                continue
+            if shift and "work" in chosen and start < shift[1] and end > shift[0] - 30:
+                continue  # le travail passe avant (c'est l'habitant qui l'a choisi)
+            leave = start - 15  # le temps d'y aller
+            if leave - builder.cursor >= 15:
+                builder.add(leave, ActivityType.RELAX, home, "temps libre", idle)
+            place = option.place_id or home
+            builder.add(end, option.activity, place, option.short, option.recipe)
+        if not homeless and builder.cursor <= DINNER:
+            builder.add(DINNER, ActivityType.RELAX, home, "temps libre à la maison", idle)
+            builder.add(DINNER + DINNER_MINUTES, ActivityType.EAT, home, "dîner", "home_meal")
+        if builder.cursor < bed:
+            builder.add(bed, ActivityType.RELAX, home, "soirée tranquille", idle)
+        builder.add(
+            MINUTES_PER_DAY,
+            ActivityType.SLEEP,
+            home,
+            "sommeil",
+            "sleep_rough" if homeless else "sleep",
+        )
+        return builder.build()
 
     def _homeless_day(
         self, agent: Agent, day_index: int, shift: tuple[int, int] | None, ctx: PlanningContext
@@ -441,6 +547,7 @@ class RuleBasedPlanner:
                 start + SHOPPING_MINUTES,
                 profile,
                 lambda _p, _k: 1.0,
+                kinds={PlaceKind.SUPERMARKET},
             )
             if shop is not None:
                 builder.add(start, ActivityType.RELAX, home, "matinée tranquille", "relax_home")
@@ -493,6 +600,7 @@ class RuleBasedPlanner:
                 start + SHOPPING_MINUTES,
                 agent.profile,
                 lambda _p, _k: 1.0,
+                kinds={PlaceKind.SUPERMARKET},
             )
             if shop is not None:
                 builder.add(
@@ -637,3 +745,19 @@ def _lunch_weight(profile: AgentModel, kind: PlaceKind) -> float:
     if kind is PlaceKind.BAKERY:
         return 0.4 + 0.4 * (1 - traits.extraversion) + 0.2 * traits.conscientiousness
     return 0.3
+
+
+def _sellers(ctx: PlanningContext, item: str) -> list[str]:
+    """Les lieux dont un comptoir vend `item` (la boutique pour les vêtements...)."""
+    found = {
+        furniture.place_id
+        for furniture in ctx.world.furniture.values()
+        if item in furniture.sells and furniture.place_id is not None
+    }
+    return sorted(found)
+
+
+def _is_open_for(ctx: PlanningContext, place_id: str, start: int) -> bool:
+    hours = ctx.world.places[place_id].hours
+    day = ctx.weekday.number
+    return hours.is_open(day, start) and hours.is_open(day, start + 59)

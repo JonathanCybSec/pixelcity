@@ -1,0 +1,14 @@
+{
+  "id": "BOUTIQUE_COUNTER",
+  "name": "Caisse de la boutique",
+  "category": "shop",
+  "canPlaceOnWalls": false,
+  "canPlaceOnSurfaces": false,
+  "backgroundTiles": 1,
+  "type": "asset",
+  "file": "BOUTIQUE_COUNTER.png",
+  "width": 32,
+  "height": 32,
+  "footprintW": 2,
+  "footprintH": 2
+}

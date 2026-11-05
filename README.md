@@ -16,7 +16,11 @@ Inspiré du papier *Generative Agents* (Stanford, 2023, la ville « Smallville �
 - **Des rendez-vous tenus** : « on se retrouve demain au parc vers 17 h 30 ? » s'inscrit dans le plan des deux habitants ; le lendemain, ils y vont. Un lapin se paie en affinité.
 - **Des relations** : chaque échange rapproche (ou non) deux habitants ; entre adultes ouverts à la romance qui s'apprécient, un flirt léger peut naître.
 - **De l'argent** : salaires au fil des heures travaillées, retraite ou allocation chaque nuit, loyer chaque nuit, prix au comptoir. Un habitant fauché renonce au café et au déjeuner dehors ; sans de quoi payer, il repart les mains vides (et s'en souvient). Chaque commerce cumule ses recettes.
-- **Une IA par habitant qui décide de sa vie** : chaque soir, elle choisit le programme du lendemain (aller travailler ou non, s'offrir un téléphone, chercher un emploi, faire la manche, voler, se détendre) ; dans un moment critique (une faim terrible sans un sou), elle décide sur le vif. Le moteur exécute les gestes. Sans Ollama, des règles de secours prennent le relais (pastille rouge « IA absente »).
+- **Une IA par habitant qui décide de sa vie** : chaque soir, elle reçoit le « menu » de la ville (travail, repas, courses, café, bar, casino, parc, sport, boutique, magasin hi-tech, aller voir quelqu'un là où il travaille, chercher un emploi, mendier, voler, grasse matinée…) avec prix et horaires, pèse **le pour et le contre**, et compose sa journée **heure par heure**. La flemme, l'envie de plaire, la tentation du jeu ou des achats existent. Un gros gain, une perte, un licenciement lui font **replanifier** la suite de la journée. Dans un moment critique (une faim terrible sans un sou), elle décide sur le vif. Sans Ollama, des règles de secours prennent le relais (pastille rouge « IA absente »).
+- **Des envies qui se renforcent** : gagner au casino donne bien plus envie d'y retourner que perdre n'en dissuade ; après une perte, on veut « se refaire ». Ces envies sont dites à l'IA chaque soir.
+- **De nouveaux lieux** : Casino Le Lucky (machines à sous, roulette), Bar Le Zinc, Boutique Mode & Co, Hi-Tech Center (télé, téléphone, console) ; Zoé (barmaid) et Théo (vendeur hi-tech) rejoignent la ville.
+
+![La réflexion de Léa : pour, contre, envie, et sa journée choisie par son IA](docs/reflexion.png)
 - **La vraie vie** : chaque euro vient de quelqu'un (employeur, État, clients) ; les factures tombent chaque nuit (loyer pour un locataire, charges pour un propriétaire), argent ou pas. Trois nuits de dette : expulsion, et l'on dort sur un banc du parc. Trois absences en sept jours : licenciement. Voler peut être vu (honte, interdit d'entrée, réputation) ; la manche rapporte quelques euros ; un ami peut aider pendant une conversation.
 
 ![Noah, expulsé, dort sur un banc du parc](docs/sans-domicile.png)
@@ -39,6 +43,7 @@ Inspiré du papier *Generative Agents* (Stanford, 2023, la ville « Smallville �
 | 4 | Studio : créer les habitants de chaque simulation (LLM, idéologie, façon de parler, apparence) | **fait** |
 | 5 | Mémoire complète (flux, récupération, réflexion) et rendez-vous tenus | **fait** |
 | 6 | Économie (salaires, loyers, prix, recettes), quartier des Mimosas, ligne de bus | **fait** |
+| 6 ter | Libre arbitre : l'IA compose toute sa journée heure par heure en pesant le pour et le contre ; casino, bar, boutique, hi-tech ; envies renforcées par l'expérience ; interface en menus déroulants | **fait** |
 | 6 bis | La vraie vie : l'IA de chaque habitant décide (travail, achats, manche, vol), factures obligatoires, propriétaire ou locataire, expulsion et vie à la rue, licenciement et embauche | **fait** |
 | 7 | Module Test de produit et exports | à venir |
 | 8 | Sauvegarde, optimisation, 50 à 100 habitants | à venir |
@@ -60,7 +65,7 @@ Au lancement, un menu propose de jouer avec les habitants d'origine, de relancer
 
 « Au hasard » crée un habitant crédible en un clic. Les scénarios sont enregistrés dans `%APPDATA%\PixelCity\scenarios\` (Windows) ou `~/.local/share/pixelcity/scenarios/`, en YAML lisible. Un commerce sans aucun employé dans le scénario reste fermé (sauf la caisse automatique du supermarché). La ville compte 13 logements d'un lit ; un scénario accueille jusqu'à 12 habitants.
 
-En partie, **Échap** (sans rien de sélectionné) ramène au menu.
+En partie, **Échap** (sans rien de sélectionné) ramène au menu. Chaque panneau et chaque section de la fiche d'un habitant est un **menu déroulant** : un clic sur son titre le replie ou le déplie.
 
 ```bash
 python -m pixelcity --scenario "Ma ville"              # lancer directement un scénario

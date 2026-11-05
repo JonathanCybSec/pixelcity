@@ -26,6 +26,7 @@ from pixelcity.llm.types import (
     Intentions,
     MeetProposal,
     Persona,
+    ProsCons,
     ReflectionRequest,
 )
 
@@ -292,21 +293,37 @@ LIFE_SYSTEM = (
 
 
 def intention_schema(req: IntentionRequest) -> dict[str, Any]:
+    ids = [o.id for o in req.activities] + [o.id for o in req.goods]
     return {
         "type": "object",
         "properties": {
-            "work": {"type": "boolean"},
-            "purchases": {
+            "pour_contre": {
                 "type": "array",
-                "items": {"type": "string", "enum": [o.id for o in req.goods] or ["aucun"]},
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "choix": {"type": "string"},
+                        "pour": {"type": "string"},
+                        "contre": {"type": "string"},
+                    },
+                    "required": ["choix", "pour", "contre"],
+                },
             },
-            "activities": {
+            "plan": {
                 "type": "array",
-                "items": {"type": "string", "enum": [o.id for o in req.activities]},
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "heure": {"type": "string"},
+                        "activite": {"type": "string", "enum": ids},
+                    },
+                    "required": ["heure", "activite"],
+                },
             },
-            "thought": {"type": "string"},
+            "budget_casino": {"type": "number"},
+            "pensee": {"type": "string"},
         },
-        "required": ["work", "purchases", "activities", "thought"],
+        "required": ["pour_contre", "plan", "budget_casino", "pensee"],
     }
 
 
@@ -316,40 +333,76 @@ def build_intention_prompt(req: IntentionRequest) -> str:
     if req.memories:
         lines.append("Souvenirs qui comptent :")
         lines.extend(f"  - {m}" for m in req.memories)
-    lines.append(f"Demain, {req.day}.")
+    if req.cravings:
+        lines.append("Envies du moment :")
+        lines.extend(f"  - {c}" for c in req.cravings)
+    lines.append(f"Demain, {req.day}. Tu te lèves vers {req.wake} et te couches vers {req.bed}.")
     if req.work:
         lines.append(
-            f"Travail prévu : {req.work}. work = true pour y aller, false pour ne pas y aller "
-            "(journée non payée ; 3 absences en 7 jours = licenciement)."
+            f"Ton travail demain : {req.work}. Tu peux y aller (activité work) ou non : "
+            "une journée manquée n'est pas payée, et 3 absences en 7 jours = licenciement."
         )
-    else:
-        lines.append("Pas de travail prévu demain (work sera ignoré).")
-    if req.goods:
-        lines.append(
-            "Achats possibles (purchases, rien si tu n'en as pas envie ou pas les moyens) :"
-        )
-        lines.extend(f"  - {o.id} : {o.label}" for o in req.goods)
-    lines.append("Activités possibles (activities, 0 à 2, dans l'ordre de préférence) :")
+    lines.append("Ce que la ville te propose (activité : détails) :")
     lines.extend(f"  - {o.id} : {o.label}" for o in req.activities)
+    if req.goods:
+        lines.append("Ce que tu pourrais t'acheter :")
+        lines.extend(f"  - {o.id} : {o.label}" for o in req.goods)
     lines.append(
-        "thought : ce que tu te dis ce soir en pensant à demain (une phrase, moins de 20 mots)."
+        "Réfléchis comme cette personne, avec ses défauts : la flemme, l'envie de plaire, la "
+        "tentation du jeu ou des achats existent, la raison aussi. pour_contre : 2 à 4 choix que "
+        "tu hésites à faire, avec le pour et le contre de chacun. plan : ta journée, heure par "
+        "heure (« HH:MM », 3 à 8 activités), dans l'ordre. budget_casino : ce que tu es prêt à "
+        "miser si tu vas au casino (0 sinon). pensee : ce que tu te dis ce soir (une phrase)."
     )
     return "\n".join(lines)
 
 
 def parse_intentions(req: IntentionRequest, data: dict[str, Any], source: str) -> Intentions:
+    allowed = {o.id for o in req.activities} | {o.id for o in req.goods}
     goods = {o.id for o in req.goods}
-    activities = {o.id for o in req.activities}
-    raw_purchases = data.get("purchases")
-    raw_activities = data.get("activities")
-    if not isinstance(raw_purchases, list):
-        raw_purchases = []
-    if not isinstance(raw_activities, list):
-        raw_activities = []
-    purchases = tuple(dict.fromkeys(str(x) for x in raw_purchases if str(x) in goods))[:2]
-    chosen = tuple(dict.fromkeys(str(x) for x in raw_activities if str(x) in activities))[:2]
-    thought = clean_text(str(data.get("thought", "")))[:MAX_INSIGHT_CHARS] or None
-    return Intentions(bool(data.get("work", True)), purchases, chosen, thought, source)
+    raw_plan = data.get("plan")
+    schedule: list[tuple[int, str]] = []
+    if isinstance(raw_plan, list):
+        for item in raw_plan[:10]:
+            if not isinstance(item, dict):
+                continue
+            activity = str(item.get("activite", ""))
+            minute = _minute(str(item.get("heure", "")))
+            if activity in allowed and minute is not None:
+                schedule.append((minute, activity))
+    schedule.sort()
+    raw_pc = data.get("pour_contre")
+    pros_cons: list[ProsCons] = []
+    if isinstance(raw_pc, list):
+        for item in raw_pc[:4]:
+            if isinstance(item, dict):
+                pros_cons.append(
+                    ProsCons(
+                        clean_text(str(item.get("choix", "")))[:60],
+                        clean_text(str(item.get("pour", "")))[:MAX_INSIGHT_CHARS],
+                        clean_text(str(item.get("contre", "")))[:MAX_INSIGHT_CHARS],
+                    )
+                )
+    try:
+        budget = max(0.0, float(data.get("budget_casino", 0) or 0))
+    except (TypeError, ValueError):
+        budget = 0.0
+    activities = tuple(a for _, a in schedule if a not in goods and a != "work")
+    purchases = tuple(a for _, a in schedule if a in goods)
+    thought = clean_text(str(data.get("pensee", "")))[:MAX_INSIGHT_CHARS] or None
+    works = any(a == "work" for _, a in schedule)
+    return Intentions(
+        works, purchases, activities, thought, source, tuple(schedule), tuple(pros_cons), budget
+    )
+
+
+def _minute(text: str) -> int | None:
+    hours, sep, minutes = text.strip().replace("h", ":").partition(":")
+    try:
+        value = int(hours) * 60 + (int(minutes) if sep and minutes else 0)
+    except ValueError:
+        return None
+    return value if 0 <= value < 24 * 60 else None
 
 
 def decision_schema(req: DecisionRequest) -> dict[str, Any]:

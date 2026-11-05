@@ -13,7 +13,7 @@ from pixelcity.agents.needs import Needs
 from pixelcity.agents.plan import DayPlan, PlanBlock
 from pixelcity.agents.tasks import Task
 from pixelcity.config.schemas import AgentModel
-from pixelcity.llm.types import Intentions
+from pixelcity.llm.types import Intentions, ProsCons
 from pixelcity.memory.stream import MemoryStream
 from pixelcity.sim.types import Anim, Facing, NeedKind, Pose, TilePos
 from pixelcity.world.furniture import Spot
@@ -61,6 +61,12 @@ class Agent:
     hired_day: int = -1  # le jour de l'embauche ne compte pas comme une absence
     unpaid: float = 0.0  # salaire dû que l'employeur n'a pas pu verser
     intentions: dict[int, Intentions] = field(default_factory=dict)  # jour → décisions de la veille
+    # Étape 6 ter : envies (0 à 1) que l'expérience renforce, et dernière délibération.
+    cravings: dict[str, float] = field(default_factory=dict)
+    casino_last: float = 0.0  # gain (ou perte) de la dernière séance de jeu
+    casino_total: float = 0.0
+    deliberation: tuple[ProsCons, ...] = ()
+    replans: dict[int, int] = field(default_factory=dict)  # jour → replanifications
 
     # --- Où il est, ce qu'il veut faire ---------------------------------------------
     place_id: str | None = None

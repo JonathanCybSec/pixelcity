@@ -122,3 +122,41 @@ agents:
     allowance: 55
     money: 900
     housing: owner
+
+  # Étape 6 ter : de nouveaux visages derrière les nouveaux comptoirs.
+  - id: zoe
+    name: Zoé Moreau
+    age: 27
+    job: Barmaid
+    home: mimosas_1
+    color: "#e05d5d"
+    sprite: 1
+    sleep: {wake: "09:30", bed: "23:30", weekend_wake: "10:00"}
+    work:
+      place: bar
+      schedule: {tue: "17:00-23:00", wed: "17:00-23:00", thu: "17:00-23:00", fri: "17:00-23:00", sat: "17:00-23:00"}
+    personality: {openness: 0.75, conscientiousness: 0.45, extraversion: 0.85, agreeableness: 0.65, neuroticism: 0.5}
+    values: [la fête, l'amitié, la liberté]
+    speech_style: "pétillante, taquine, tutoie tout le monde"
+    ideology: "épicurien : profiter de la vie, bien manger, bien recevoir"
+    wage: 13
+    money: 140
+    romance: true
+
+  - id: theo
+    name: Théo Leroy
+    age: 31
+    job: Vendeur hi-tech
+    home: mimosas_4
+    color: "#3fbac2"
+    sprite: 2
+    sleep: {wake: "08:00", bed: "23:00", weekend_wake: "09:00"}
+    work:
+      place: hitech
+      schedule: {mon: "10:00-19:00", tue: "10:00-19:00", wed: "10:00-19:00", thu: "10:00-19:00", fri: "10:00-19:00", sat: "10:00-19:00"}
+    personality: {openness: 0.65, conscientiousness: 0.4, extraversion: 0.6, agreeableness: 0.55, neuroticism: 0.65}
+    values: [la technologie, la réussite, les jeux vidéo]
+    speech_style: "enthousiaste, parle vite, adore les nouveautés"
+    ideology: "technophile : la technologie va résoudre la plupart des problèmes"
+    wage: 13
+    money: 260

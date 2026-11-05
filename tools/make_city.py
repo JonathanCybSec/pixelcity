@@ -363,6 +363,78 @@ def supermarket(city: City, x0: int, y0: int) -> None:
     city.put("BIN", x0 + 17, y0 + 10, p)
 
 
+def casino(city: City, x0: int, y0: int) -> None:
+    """Casino 20×11, porte au sud : machines à sous le long du mur, roulette, toilettes."""
+    p, w, h = "casino", 20, 11
+    city.building(x0, y0, w, h, "navy", "carpet_rose")
+    city.door(x0 + 9, y0 + h - 1, "carpet_rose")
+    city.set(x0 + 9, y0 + h, "doormat")
+    city.wall_line(x0 + 16, y0 + 1, x0 + 16, y0 + 4, "navy")  # toilettes
+    city.wall_line(x0 + 17, y0 + 4, x0 + 18, y0 + 4, "navy")
+    city.door(x0 + 16, y0 + 3, "tile_white")
+    city.fill(x0 + 17, y0 + 1, x0 + 18, y0 + 3, "tile_white")
+    city.place(p, "Casino Le Lucky", x0, y0, w, h)
+    city.room("salle de jeu", "shop", p, x0 + 1, y0 + 1, 15, 8)
+    city.room("toilettes", "bathroom", p, x0 + 17, y0 + 1, 2, 3)
+    for dx in range(1, 15, 2):
+        city.put("SLOT_MACHINE", x0 + dx, y0, p)
+    city.put("ROULETTE_TABLE", x0 + 5, y0 + 4, p)
+    city.put("ROULETTE_TABLE", x0 + 11, y0 + 4, p)
+    city.put("TOILET", x0 + 18, y0, p)
+    city.put("WASHBASIN", x0 + 17, y0, p)
+    city.put("LARGE_PLANT", x0 + 1, y0 + 7, p)
+    city.put("LARGE_PLANT", x0 + 17, y0 + 7, p)
+
+
+def bar(city: City, x0: int, y0: int) -> None:
+    """Bar 14×11, porte au sud : comptoir, tables, toilettes."""
+    p, w, h = "bar", 14, 11
+    city.building(x0, y0, w, h, "brick", "wood_warm")
+    city.door(x0 + 4, y0 + h - 1, "wood_warm")
+    city.set(x0 + 4, y0 + h, "doormat")
+    city.wall_line(x0 + 10, y0 + 1, x0 + 10, y0 + 4, "brick")
+    city.wall_line(x0 + 11, y0 + 4, x0 + 12, y0 + 4, "brick")
+    city.door(x0 + 10, y0 + 3, "tile_white")
+    city.fill(x0 + 11, y0 + 1, x0 + 12, y0 + 3, "tile_white")
+    city.place(p, "Bar Le Zinc", x0, y0, w, h)
+    city.room("salle", "shop", p, x0 + 1, y0 + 1, 9, 8)
+    city.room("toilettes", "bathroom", p, x0 + 11, y0 + 1, 2, 3)
+    city.put("SHELF_DRINKS", x0 + 2, y0, p)
+    city.put("BAR_COUNTER", x0 + 2, y0 + 2, p)
+    for tx, ty in ((5, 2), (6, 6)):
+        city.put("SMALL_TABLE", x0 + tx, y0 + ty, p)
+        city.put("WOODEN_CHAIR", x0 + tx - 1, y0 + ty, p, "side")
+        city.put("WOODEN_CHAIR", x0 + tx + 2, y0 + ty, p, "left")
+    city.put("TOILET", x0 + 12, y0, p)
+    city.put("WASHBASIN", x0 + 11, y0, p)
+    city.put("PLANT", x0 + 12, y0 + 7, p)
+
+
+def store(
+    city: City,
+    p: str,
+    name: str,
+    x0: int,
+    y0: int,
+    style: str,
+    floor: str,
+    counter: str,
+    shelf: str,
+) -> None:
+    """Boutique 14×11, porte au nord : deux rangées de présentoirs, une caisse."""
+    w, h = 14, 11
+    city.building(x0, y0, w, h, style, floor)
+    city.door(x0 + 2, y0, floor)
+    city.set(x0 + 2, y0 - 1, "doormat")
+    city.place(p, name, x0, y0, w, h)
+    city.room("magasin", "shop", p, x0 + 1, y0 + 1, w - 2, h - 2)
+    for i in range(4):
+        city.put(shelf, x0 + 4 + 2 * i, y0 + 2, p)
+        city.put(shelf, x0 + 4 + 2 * i, y0 + 6, p)
+    city.put(counter, x0 + 11, y0 + 4, p)
+    city.put("PLANT", x0 + 1, y0 + 8, p)
+
+
 def office(city: City, x0: int, y0: int) -> None:
     """Bureaux 22×14 dans le style de pixel-agents : six postes, coin café, réunion."""
     p, w, h = "bureaux", 22, 14
@@ -530,11 +602,11 @@ def streets(city: City) -> None:
 
 def street_trees(city: City) -> None:
     """Un peu de verdure le long des rues, sans jamais bloquer un trottoir."""
-    for x, y in ((35, 2), (40, 6), (46, 3), (52, 7), (57, 2), (36, 10), (58, 11)):
+    for x, y in ((35, 2), (36, 9), (57, 2), (58, 9)):
         city.put("TREE_ROUND", x, y, "")
-    for x, y in ((68, 2), (75, 6), (82, 2), (89, 7), (92, 1)):
+    for x, y in ((92, 1), (91, 8)):
         city.put("TREE_ROUND" if x % 2 else "TREE_PINE", x, y, "")
-    for x, y in ((41, 12), (51, 12)):
+    for x, y in ((50, 12), (55, 12)):
         city.put("PARK_BENCH", x, y, "")
     for x, y in ((34, 45), (61, 45), (66, 50), (126, 13)):
         city.put("LAMPPOST", x, y, "")
@@ -588,6 +660,24 @@ def build_city(tiles: Tileset) -> City:
     city.fill(98, 14, 126, 14, "path")
     city.fill(98, 48, 126, 48, "path")
     city.fill(98, 46, 98, 48, "path")
+    # Étape 6 ter : les tentations. Bar et casino au nord, boutiques au sud-est.
+    bar(city, 41, 1)
+    city.fill(45, 12, 45, 13, "path")
+    casino(city, 70, 1)
+    city.fill(66, 13, 94, 13, "path")
+    city.set(79, 12, "path")
+    store(
+        city,
+        "boutique",
+        "Boutique Mode & Co",
+        99,
+        50,
+        "rose",
+        "wood_light",
+        "BOUTIQUE_COUNTER",
+        "CLOTHES_RACK",
+    )
+    store(city, "hitech", "Hi-Tech Center", 113, 50, "slate", "lino", "TECH_COUNTER", "TECH_SHELF")
     street_trees(city)
     return city
 

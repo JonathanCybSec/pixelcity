@@ -660,6 +660,109 @@ def window() -> Sprites:
     return {"WINDOW": s}
 
 
+# --------------------------------------------------------------------------- #
+# Étape 6 ter : casino, bar, boutiques
+# --------------------------------------------------------------------------- #
+def slot_machine() -> Sprites:
+    """Machine à sous : trois rouleaux, un levier ; allumée, elle clignote."""
+    out: Sprites = {}
+    lights = {
+        "SLOT_MACHINE_OFF": None,
+        "SLOT_MACHINE_ON_1": "#fcde5a",
+        "SLOT_MACHINE_ON_2": "#e85d24",
+    }
+    for name, light in lights.items():
+        s = Sprite(16, 32)
+        s.rect(1, 2, 13, 27, CRIMSON.line)
+        s.rect(2, 3, 11, 25, CRIMSON.front)
+        s.rect(2, 3, 11, 3, light or CRIMSON.top)  # fronton lumineux
+        s.rect(3, 8, 9, 7, GRAPHITE.line)  # rouleaux
+        for i, symbol in enumerate(("#e85d24", "#fcde5a", "#5fc6a0")):
+            s.rect(4 + 3 * i, 9, 2, 5, WHITE.top)
+            s.rect(4 + 3 * i, 11, 2, 1, symbol if light else "#c6ccd4")
+        s.rect(4, 17, 7, 2, "#d4a94a")  # fente à pièces
+        s.rect(3, 22, 9, 5, CRIMSON.dark)  # bac
+        s.vline(14, 6, 13, STEEL.front)  # levier
+        s.px(14, 5, "#c8323f")
+        s.px(15, 5, "#c8323f")
+        s.shadow(1, 29, 14)
+        out[name] = s
+    return out
+
+
+def roulette_table() -> Sprites:
+    s = Sprite(48, 32)
+    s.rect(0, 4, 48, 24, WOOD_DARK.line)
+    s.rect(1, 5, 46, 20, "#2f7a4a")  # tapis vert
+    s.frame(1, 5, 46, 20, "#245d39")
+    for i in range(6):  # cases
+        s.rect(20 + 4 * i, 8, 3, 3, "#c8323f" if i % 2 else "#1e1c22")
+        s.rect(20 + 4 * i, 13, 3, 3, "#1e1c22" if i % 2 else "#c8323f")
+    s.rect(4, 7, 13, 13, WOOD.line)  # cylindre
+    s.rect(5, 8, 11, 11, WOOD.front)
+    s.rect(7, 10, 7, 7, "#c8323f")
+    s.rect(9, 12, 3, 3, "#d4a94a")
+    s.px(10, 13, WHITE.hi)
+    s.hline(1, 46, 25, WOOD_DARK.front)
+    s.shadow(0, 28, 48, 3)
+    return {"ROULETTE_TABLE": s}
+
+
+def _counter(color: Material, stripe: str) -> Sprite:
+    s = Sprite(32, 32)
+    s.rect(0, 2, 32, 27, color.line)
+    s.rect(1, 3, 30, 6, color.top)
+    s.hline(1, 30, 3, color.hi)
+    s.rect(1, 9, 30, 18, color.front)
+    s.rect(1, 13, 30, 3, stripe)
+    s.rect(21, 0, 8, 5, GRAPHITE.line)  # terminal de paiement
+    s.rect(22, 1, 6, 3, "#5fc6a0")
+    s.hline(1, 30, 26, color.dark)
+    s.shadow(0, 29, 32, 3)
+    return s
+
+
+def shop_counters() -> Sprites:
+    return {
+        "BOUTIQUE_COUNTER": _counter(CREAM, "#c25769"),
+        "TECH_COUNTER": _counter(GRAPHITE, "#4f8fd0"),
+        "BAR_COUNTER": _counter(WOOD_DARK, "#d4a94a"),
+    }
+
+
+def clothes_rack() -> Sprites:
+    s = Sprite(32, 32)
+    s.hline(2, 29, 6, STEEL.line)  # tringle
+    s.vline(2, 6, 28, STEEL.front)
+    s.vline(29, 6, 28, STEEL.front)
+    colors = ("#c25769", "#658eb1", "#efe3c4", "#619947", "#e9d36b", "#3a3a40")
+    for i, color in enumerate(colors):
+        x = 4 + 4 * i
+        s.rect(x, 7, 3, 13, color)
+        s.vline(x, 7, 19, GRAPHITE.line)
+        s.px(x + 1, 6, STEEL.line)
+    s.hline(1, 30, 28, STEEL.line)
+    s.shadow(1, 29, 30, 3)
+    return {"CLOTHES_RACK": s}
+
+
+def tech_shelf() -> Sprites:
+    s = Sprite(32, 32)
+    s.rect(0, 1, 32, 28, GRAPHITE.line)
+    s.rect(1, 2, 30, 26, GRAPHITE.front)
+    s.rect(3, 4, 12, 8, "#1e2632")  # téléviseurs
+    s.rect(4, 5, 10, 6, "#3b6ea5")
+    s.rect(17, 4, 12, 8, "#1e2632")
+    s.rect(18, 5, 10, 6, "#4a7d4f")
+    s.hline(1, 30, 14, GRAPHITE.top)
+    for i in range(6):  # téléphones et consoles
+        s.rect(3 + 5 * i, 17, 3, 5, "#1e1c22")
+        s.px(4 + 5 * i, 18, "#6fb3d9")
+    s.hline(1, 30, 24, GRAPHITE.top)
+    s.shadow(0, 29, 32, 3)
+    return {"TECH_SHELF": s}
+
+
 ALL = (
     fridge,
     stove,
@@ -689,6 +792,11 @@ ALL = (
     park_bench,
     lamppost,
     window,
+    slot_machine,
+    roulette_table,
+    shop_counters,
+    clothes_rack,
+    tech_shelf,
 )
 
 # Palette réutilisée par d'autres modules (sols extérieurs).

@@ -37,6 +37,7 @@ from pixelcity.agents.planner import Planner, PlanningContext
 from pixelcity.agents.tasks import Phase, Task, TaskKind
 from pixelcity.sim.context import SimContext
 from pixelcity.sim.events import EventKind
+from pixelcity.sim.options import DayOption, day_options, goods_options
 from pixelcity.sim.service import server_of
 from pixelcity.sim.types import ActivityType, Anim, NeedKind, PlaceKind, Pose, Weekday
 from pixelcity.world.place import Access, Place
@@ -123,6 +124,17 @@ def update_agent(agent: Agent, ctx: SimContext, planner: Planner) -> None:
 # --------------------------------------------------------------------------- #
 # 1. Plan
 # --------------------------------------------------------------------------- #
+def _options(agent: Agent, ctx: SimContext, day: int) -> dict[str, DayOption]:
+    """Le menu de la ville, seulement si l'IA a composé un programme pour aujourd'hui."""
+    intentions = agent.intentions.get(day)
+    if intentions is None or not intentions.schedule:
+        return {}
+    others = list(ctx.agents.values())
+    options = day_options(ctx.world, ctx.config, agent, others, day)
+    options.update(goods_options(ctx.world, ctx.config, agent, day))
+    return options
+
+
 def _ensure_plan(agent: Agent, ctx: SimContext, planner: Planner) -> None:
     day = ctx.clock.day_index
     if agent.plan is None or agent.plan.day_index != day:
@@ -138,6 +150,8 @@ def _ensure_plan(agent: Agent, ctx: SimContext, planner: Planner) -> None:
             homeless=agent.homeless,
             money=agent.money,
             prices={item: model.price for item, model in ctx.config.actions.items.items()},
+            options=_options(agent, ctx, day),
+            replan_from=ctx.clock.minute_of_day if ctx.clock.minute_of_day > 0 else None,
         )
         agent.plan = planner.plan_day(agent, day, planning)
         agent.block_index = 0

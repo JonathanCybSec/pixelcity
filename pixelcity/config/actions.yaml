@@ -28,7 +28,12 @@ items:
   phone: {label: téléphone neuf, price: 420, durable: true}
   headphones: {label: casque audio, price: 60, durable: true}
   clothes: {label: vêtements neufs, price: 45, durable: true}
+  shoes: {label: baskets neuves, price: 80, durable: true}
   book: {label: roman, price: 14, durable: true}
+  tv: {label: grande télé, price: 650, durable: true}
+  console: {label: console de jeux, price: 350, durable: true}
+  beer: {label: bière, price: 4.5}
+  cocktail: {label: cocktail, price: 9}
 
 recipes:
   # --- Nuit et hygiène ---------------------------------------------------------
@@ -184,6 +189,33 @@ recipes:
     steps:
       - {verb: pick_goods, minutes: 5, label: feuillette des romans}
       - {verb: order, buy: book, label: passe en caisse}
+  buy_shoes:
+    label: s'acheter des baskets
+    steps:
+      - {verb: pick_goods, minutes: 8, label: compare les modèles}
+      - {verb: order, buy: shoes, label: passe en caisse}
+  buy_tv:
+    label: s'acheter une télé
+    steps:
+      - {verb: pick_goods, minutes: 8, label: compare les modèles}
+      - {verb: order, buy: tv, label: passe en caisse}
+  buy_console:
+    label: s'acheter une console
+    steps:
+      - {verb: pick_goods, minutes: 8, label: compare les modèles}
+      - {verb: order, buy: console, label: passe en caisse}
+  casino:
+    label: jouer au casino
+    loop: true
+    steps:
+      - {verb: gamble, minutes: 12, label: joue, special: gamble, switch_on: true, effects: {fun: 50}, anim: interact}
+  bar_evening:
+    label: soirée au bar
+    steps:
+      - {verb: order, buy: beer, label: commande une bière}
+      - {verb: wait, minutes: 40, label: boit un verre, consume: {beer: 1}, effects: {fun: 40, energy: -2}}
+      - {verb: order, buy: cocktail, label: commande un cocktail, optional: true}
+      - {verb: wait, minutes: 30, label: sirote un cocktail, consume: {cocktail: 1}, optional: true, effects: {fun: 40}}
   job_search:
     label: chercher un emploi
     steps:
@@ -243,6 +275,24 @@ recipes:
     steps:
       - {verb: man_checkout, minutes: 50, label: tient la caisse}
       - {verb: restock, minutes: 10, label: remplit les rayons, anim: interact}
+  job_casino:
+    label: croupier
+    loop: true
+    steps:
+      - {verb: deal, minutes: 40, label: fait tourner la roulette, anim: interact}
+  job_bar:
+    label: service au bar
+    loop: true
+    serve: true
+    steps:
+      - {verb: tidy, minutes: 20, label: essuie les verres, anim: interact}
+  job_shop:
+    label: vendeur
+    loop: true
+    serve: true
+    steps:
+      - {verb: restock, minutes: 25, label: range les rayons, anim: interact}
+      - {verb: tidy, minutes: 15, label: s'occupe de la caisse, anim: interact}
   job_office:
     label: travail de bureau
     loop: true
@@ -263,6 +313,10 @@ jobs:
   supermarket: job_supermarket
   office: job_office
   school: job_school
+  casino: job_casino
+  bar: job_bar
+  boutique: job_shop
+  electronics: job_shop
 
 # Quand la recette d'un bloc est finie avant la fin du bloc (ou impossible).
 fillers:

@@ -109,7 +109,7 @@ class Option:
 
 @dataclass(frozen=True, slots=True)
 class IntentionRequest:
-    """La veille au soir : que vais-je faire demain ?"""
+    """La veille au soir : quelle journée vais-je vivre demain ?"""
 
     persona: Persona
     memories: tuple[str, ...]
@@ -118,15 +118,31 @@ class IntentionRequest:
     goods: tuple[Option, ...]  # ce qu'il pourrait s'acheter (prix compris)
     activities: tuple[Option, ...]
     seed: int = 0
+    cravings: tuple[str, ...] = ()  # « envie de retourner au casino (dernière fois : +120 €) »
+    wake: str = "07:00"
+    bed: str = "23:00"
+
+
+@dataclass(frozen=True, slots=True)
+class ProsCons:
+    choice: str
+    pros: str
+    cons: str
 
 
 @dataclass(frozen=True, slots=True)
 class Intentions:
+    """Le programme décidé : par l'IA (avec un horaire), ou par les règles de secours."""
+
     work: bool = True
     purchases: tuple[str, ...] = ()
     activities: tuple[str, ...] = ()
     thought: str | None = None
     source: str = "règles"
+    # Étape 6 ter : le vrai programme de l'IA, heure par heure, et sa délibération.
+    schedule: tuple[tuple[int, str], ...] = ()  # (minute du jour, activité)
+    pros_cons: tuple[ProsCons, ...] = ()
+    casino_budget: float = 0.0
 
 
 @dataclass(frozen=True, slots=True)
