@@ -31,11 +31,24 @@ class EventKind(StrEnum):
     PLAN_CREATED = "plan_created"
     DEPARTED = "departed"
     ARRIVED = "arrived"
-    ACTIVITY_STARTED = "activity_started"
+    # Tâches : une recette commence, chacune de ses étapes, sa fin ou son échec.
+    TASK_STARTED = "task_started"
+    STEP_STARTED = "step_started"
+    TASK_DONE = "task_done"
+    TASK_FAILED = "task_failed"
     NEED_CRITICAL = "need_critical"
     NEED_RECOVERED = "need_recovered"
     PLACE_CLOSED = "place_closed"
     PATH_NOT_FOUND = "path_not_found"
+    # Commerces : la file, le service, les stocks.
+    QUEUE_JOINED = "queue_joined"
+    SERVICE_STARTED = "service_started"
+    SERVICE_DONE = "service_done"
+    STOCK_EMPTY = "stock_empty"
+    # Une réplique prononcée (une bulle à l'écran).
+    SAY = "say"
+    # Deux habitants changent de palier (font connaissance, deviennent amis...).
+    RELATION = "relation"
 
 
 @dataclass(frozen=True, slots=True)

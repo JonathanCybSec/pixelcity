@@ -1,4 +1,9 @@
-"""Plan de journée : une suite de blocs « lieu + activité » couvrant 24 heures.
+"""Plan de journée : une suite de blocs « lieu + activité + recette » couvrant 24 heures.
+
+Le plan dit QUOI faire et OÙ (« déjeuner à la boulangerie de 12:15 à 13:15 ») ;
+la recette dit COMMENT, geste par geste (faire la queue, commander, s'asseoir,
+manger). Le plan est l'affaire du planificateur (règles, puis LLM à l'étape 3),
+les gestes celle de l'exécuteur de tâches (`tasks.py`).
 
 Les heures des blocs sont des MINUTES ABSOLUES (depuis le début de la
 simulation), pas des heures du jour : un bloc ne « passe » donc jamais minuit
@@ -23,6 +28,7 @@ class PlanBlock:
     activity: ActivityType
     place_id: str
     label: str
+    recipe: str  # nom d'une recette d'actions.yaml
     # Engagement à l'heure (travail) : l'agent part en avance pour être à
     # l'heure. Les autres blocs commencent quand on arrive.
     punctual: bool = False
@@ -93,6 +99,7 @@ class PlanBuilder:
         activity: ActivityType,
         place_id: str,
         label: str,
+        recipe: str,
         *,
         punctual: bool = False,
     ) -> None:
@@ -103,11 +110,14 @@ class PlanBuilder:
         start = self._day_start + self._cursor
         end = self._day_start + until
         last = self._blocks[-1] if self._blocks else None
-        if last and (last.activity, last.place_id, last.label) == (activity, place_id, label):
+        key = (activity, place_id, label, recipe)
+        if last and (last.activity, last.place_id, last.label, last.recipe) == key:
             # Deux blocs identiques consécutifs : on les fusionne.
-            self._blocks[-1] = PlanBlock(last.start, end, activity, place_id, label, punctual)
+            self._blocks[-1] = PlanBlock(
+                last.start, end, activity, place_id, label, recipe, punctual
+            )
         else:
-            self._blocks.append(PlanBlock(start, end, activity, place_id, label, punctual))
+            self._blocks.append(PlanBlock(start, end, activity, place_id, label, recipe, punctual))
         self._cursor = until
 
     def build(self) -> DayPlan:

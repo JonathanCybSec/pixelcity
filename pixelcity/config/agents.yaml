@@ -1,10 +1,11 @@
 # Les habitants.
 #
-# Toute la fiche est déjà là (personnalité, valeurs), même si l'étape 1 n'en
-# exploite qu'une partie : à l'étape 2, ces informations nourriront les
-# prompts du LLM qui planifiera leurs journées.
+# Toute la fiche est déjà là (personnalité, valeurs), même si l'étape 2 n'en
+# exploite qu'une partie : à l'étape 3, ces informations nourriront les
+# prompts des LLM qui les feront parler et décider.
 #
-# personality : Big Five (OCEAN), chaque trait entre 0 et 1.
+# sprite      : apparence, l'un des 6 personnages de pixel-agents (0 à 5)
+# personality : Big Five (OCEAN), chaque trait entre 0 et 1
 # Les heures s'écrivent entre guillemets.
 
 agents:
@@ -14,45 +15,26 @@ agents:
     job: Boulanger
     home: maison_dupont
     color: "#d08c45"
-    sleep: {wake: "04:00", bed: "21:00", weekend_wake: "07:30"}
+    sprite: 0
+    sleep: {wake: "03:45", bed: "21:00", weekend_wake: "07:30"}
     work:
       place: boulangerie
-      schedule:
-        mon: "05:00-12:30"
-        tue: "05:00-12:30"
-        wed: "05:00-12:30"
-        thu: "05:00-12:30"
-        fri: "05:00-12:30"
-        sat: "05:00-12:30"
-    personality:
-      openness: 0.35
-      conscientiousness: 0.9
-      extraversion: 0.65
-      agreeableness: 0.75
-      neuroticism: 0.3
+      schedule: {mon: "05:00-13:00", tue: "05:00-13:00", wed: "05:00-13:00", thu: "05:00-13:00", fri: "05:00-13:00", sat: "05:00-13:00"}
+    personality: {openness: 0.35, conscientiousness: 0.9, extraversion: 0.65, agreeableness: 0.75, neuroticism: 0.3}
     values: [le travail bien fait, la famille, la tradition]
 
   - id: lea
     name: Léa Martin
     age: 29
     job: Comptable
-    home: immeuble_tilleuls
+    home: appart_1
     color: "#5b8def"
+    sprite: 5
     sleep: {wake: "07:00", bed: "23:00", weekend_wake: "09:00"}
     work:
       place: bureaux
-      schedule:
-        mon: "09:00-17:30"
-        tue: "09:00-17:30"
-        wed: "09:00-17:30"
-        thu: "09:00-17:30"
-        fri: "09:00-17:00"
-    personality:
-      openness: 0.7
-      conscientiousness: 0.75
-      extraversion: 0.8
-      agreeableness: 0.6
-      neuroticism: 0.45
+      schedule: {mon: "09:00-17:30", tue: "09:00-17:30", wed: "09:00-17:30", thu: "09:00-17:30", fri: "09:00-17:00"}
+    personality: {openness: 0.7, conscientiousness: 0.75, extraversion: 0.8, agreeableness: 0.6, neuroticism: 0.45}
     values: [l'indépendance, l'amitié, la curiosité]
 
   - id: karim
@@ -61,21 +43,53 @@ agents:
     job: Professeur des écoles
     home: maison_benali
     color: "#4caf7d"
+    sprite: 2
     sleep: {wake: "06:30", bed: "22:30", weekend_wake: "08:00"}
     work:
       place: ecole
       # Mercredi après-midi libre, comme dans beaucoup d'écoles françaises.
-      schedule:
-        mon: "08:00-16:30"
-        tue: "08:00-16:30"
-        wed: "08:00-12:00"
-        thu: "08:00-16:30"
-        fri: "08:00-16:30"
+      schedule: {mon: "08:00-16:30", tue: "08:00-16:30", wed: "08:00-12:00", thu: "08:00-16:30", fri: "08:00-16:30"}
       lunch_at_work: true
-    personality:
-      openness: 0.8
-      conscientiousness: 0.7
-      extraversion: 0.45
-      agreeableness: 0.85
-      neuroticism: 0.35
+    personality: {openness: 0.8, conscientiousness: 0.7, extraversion: 0.45, agreeableness: 0.85, neuroticism: 0.35}
     values: [la transmission, la justice, la famille]
+
+  - id: sofia
+    name: Sofia Rossi
+    age: 34
+    job: Caissière
+    home: appart_2
+    color: "#e07ab0"
+    sprite: 1
+    sleep: {wake: "07:30", bed: "23:00", weekend_wake: "09:30"}
+    work:
+      place: supermarche
+      # Repos le mercredi : c'est son jour de courses (la caisse passe en libre-service).
+      schedule: {mon: "09:00-18:30", tue: "09:00-18:30", thu: "09:00-18:30", fri: "09:00-18:30", sat: "09:00-18:30"}
+    personality: {openness: 0.55, conscientiousness: 0.65, extraversion: 0.7, agreeableness: 0.8, neuroticism: 0.5}
+    values: [la générosité, la famille, la musique]
+
+  - id: hugo
+    name: Hugo Lambert
+    age: 24
+    job: Barista
+    home: appart_3
+    color: "#f0b429"
+    sprite: 4
+    sleep: {wake: "06:15", bed: "23:30", weekend_wake: "06:15"}
+    work:
+      place: cafe
+      schedule: {tue: "07:00-15:00", wed: "07:00-15:00", thu: "07:00-15:00", fri: "07:00-15:00", sat: "07:00-15:00", sun: "07:00-15:00"}
+      lunch_at_work: true
+    personality: {openness: 0.85, conscientiousness: 0.5, extraversion: 0.9, agreeableness: 0.7, neuroticism: 0.4}
+    values: [la créativité, la liberté, les rencontres]
+
+  - id: paul
+    name: Paul Girard
+    age: 68
+    job: Retraité
+    home: maison_girard
+    color: "#9b8cd6"
+    sprite: 3
+    sleep: {wake: "07:00", bed: "22:00", weekend_wake: "07:30"}
+    personality: {openness: 0.6, conscientiousness: 0.6, extraversion: 0.55, agreeableness: 0.8, neuroticism: 0.25}
+    values: [la convivialité, le jardinage, l'histoire locale]

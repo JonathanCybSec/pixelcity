@@ -14,7 +14,7 @@ from typing import TextIO
 
 from pixelcity.sim.clock import format_absolute_minute
 from pixelcity.sim.events import Event, EventKind
-from pixelcity.sim.narration import describe
+from pixelcity.sim.narration import VERBOSE_KINDS, describe
 from pixelcity.sim.simulation import Simulation
 from pixelcity.sim.types import NeedKind
 
@@ -47,7 +47,7 @@ def run_headless(
     def on_event(event: Event) -> None:
         if jsonl is not None:
             jsonl.write(event.to_json() + "\n")
-        if verbose:
+        if verbose and event.kind not in VERBOSE_KINDS:
             stamp = format_absolute_minute(event.tick * tick_seconds // 60)
             separator = "" if event.kind is EventKind.DAY_STARTED else f"{stamp}  "
             print(separator + describe(event, agent_names, place_names), file=out)
@@ -81,7 +81,7 @@ def _print_summary(sim: Simulation, report: HeadlessReport, out: TextIO) -> None
     print(f"Graine {sim.seed} · empreinte du journal : {report.digest[:16]}", file=out)
     for agent in sim.agents.values():
         needs = " · ".join(f"{kind.label} {agent.needs[kind]:.0f}" for kind in NeedKind)
-        top = sorted(agent.minutes_by_activity.items(), key=lambda item: -item[1])[:4]
+        top = sorted(agent.minutes_by_recipe.items(), key=lambda item: -item[1])[:5]
         hours = ", ".join(f"{name} {minutes / 60:.1f} h" for name, minutes in top)
         print(f"- {agent.name} ({agent.profile.job}) : {needs}", file=out)
         print(f"    temps passé : {hours}", file=out)
