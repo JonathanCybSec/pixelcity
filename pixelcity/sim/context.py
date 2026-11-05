@@ -19,6 +19,7 @@ from pixelcity.sim.service import ServiceDesk
 from pixelcity.world.world import World
 
 if TYPE_CHECKING:
+    from pixelcity.sim.appointments import Appointments
     from pixelcity.sim.conversation import Conversations
 
 if TYPE_CHECKING:  # uniquement pour mypy : évite un import circulaire à l'exécution
@@ -39,6 +40,7 @@ class SimContext:
     hours_per_tick: float
     minutes_per_tick: float
     conversations: Conversations
+    appointments: Appointments
 
     @property
     def now(self) -> int:

@@ -28,10 +28,12 @@ from pixelcity.config.loader import GameConfig
 from pixelcity.config.schemas import AgentModel
 from pixelcity.llm.backends import DialogueBackend, ScriptedBackend
 from pixelcity.resources import assets_dir
+from pixelcity.sim.appointments import Appointments
 from pixelcity.sim.clock import SimClock
 from pixelcity.sim.context import SimContext
 from pixelcity.sim.conversation import Conversations
 from pixelcity.sim.events import EventKind, EventLog
+from pixelcity.sim.minds import Minds
 from pixelcity.sim.relations import Relations
 from pixelcity.sim.rng import RngRegistry
 from pixelcity.sim.service import build_desks, update_desks
@@ -89,6 +91,8 @@ class Simulation:
         # Par défaut : le script (instantané, reproductible). main.py branche
         # Ollama quand le .env l'active.
         self.conversations = Conversations(dialogue or script, script)
+        self.appointments = Appointments()
+        self.minds = Minds(dialogue or script)
         minutes_per_tick = self.clock.tick_seconds / 60
         self.ctx = SimContext(
             config=config,
@@ -103,7 +107,12 @@ class Simulation:
             hours_per_tick=self.clock.hours_per_tick,
             minutes_per_tick=minutes_per_tick,
             conversations=self.conversations,
+            appointments=self.appointments,
         )
+        for agent in self.agents.values():
+            agent.memory.ticks_per_hour = self.clock.ticks_per_minute * 60
+        # La mémoire écoute le journal : chaque événement notable devient un souvenir.
+        self.events.subscribe(lambda event: self.minds.on_event(self.ctx, event))
         self._commands: deque[Command] = deque()
         self.ctx.emit(EventKind.SIM_STARTED, seed=self.seed, agents=len(self.agents))
 
@@ -122,6 +131,7 @@ class Simulation:
             update_agent(agent, self.ctx, self.planner)
         update_desks(self.ctx)
         self.conversations.update(self.ctx)
+        self.minds.update(self.ctx)
         clock.advance()
 
     def run_ticks(self, count: int) -> None:

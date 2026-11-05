@@ -13,6 +13,7 @@ from pixelcity.agents.needs import Needs
 from pixelcity.agents.plan import DayPlan, PlanBlock
 from pixelcity.agents.tasks import Task
 from pixelcity.config.schemas import AgentModel
+from pixelcity.memory.stream import MemoryStream
 from pixelcity.sim.types import Anim, Facing, NeedKind, Pose, TilePos
 from pixelcity.world.furniture import Spot
 
@@ -42,6 +43,7 @@ class Agent:
     anim: Anim = Anim.IDLE
     spot: Spot | None = None  # la place occupée en ce moment (chaise, lit, comptoir...)
     speech: Speech | None = None
+    memory: MemoryStream = field(default_factory=lambda: MemoryStream(360))
     conversation: int | None = None  # conversation en ville en cours (on s'arrête pour parler)
 
     # --- Où il est, ce qu'il veut faire ---------------------------------------------

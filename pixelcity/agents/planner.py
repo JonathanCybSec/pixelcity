@@ -24,6 +24,7 @@ from typing import Protocol
 from pixelcity.agents.agent import Agent
 from pixelcity.agents.plan import DayPlan, PlanBuilder
 from pixelcity.config.schemas import ActionsConfig, AgentModel
+from pixelcity.sim.appointments import Appointment
 from pixelcity.sim.types import MINUTES_PER_DAY, ActivityType, PlaceKind, Weekday
 from pixelcity.world.place import Place
 from pixelcity.world.world import World
@@ -82,6 +83,8 @@ class PlanningContext:
     weekday: Weekday
     rng: random.Random
     walk_speed: float  # tuiles par minute
+    # Étape 5 : rendez-vous pris la veille, à caser dans la journée.
+    appointments: tuple[Appointment, ...] = ()
 
 
 class Planner(Protocol):
@@ -151,6 +154,7 @@ class RuleBasedPlanner:
             shopping = self._day_off(builder, agent, ctx, shopping, visited)
 
         dinner = min(DINNER, bed - DINNER_MINUTES - 30)
+        shopping = self._appointments(builder, agent, dinner, ctx, visited, shopping)
         self._free_time(builder, agent, dinner, ctx, visited, shopping=shopping)
         builder.add(dinner, ActivityType.RELAX, home, "temps libre à la maison", "relax_home")
         builder.add(dinner + DINNER_MINUTES, ActivityType.EAT, home, "dîner", "home_meal")
@@ -230,6 +234,57 @@ class RuleBasedPlanner:
                 if profile.sleep.wake <= 5 * 60:
                     # Les lève-tôt (le boulanger !) font la sieste.
                     builder.add(builder.cursor + 75, ActivityType.SLEEP, home, "sieste", "nap")
+
+    def _appointments(
+        self,
+        builder: PlanBuilder,
+        agent: Agent,
+        until: int,
+        ctx: PlanningContext,
+        visited: set[str],
+        shopping: bool,
+    ) -> bool:
+        """Cale les rendez-vous de la journée : temps libre jusque-là, puis le rendez-vous.
+
+        Le bloc est « ponctuel » : la routine fait partir l'habitant assez tôt
+        pour arriver à l'heure, comme pour le travail.
+        """
+        for appointment in ctx.appointments:
+            if appointment.start - 20 < builder.cursor or appointment.end > until:
+                continue  # trop tôt (encore au travail) ou trop tard : il ne pourra pas venir
+            place = ctx.world.places.get(appointment.place_id)
+            if place is None or place.kind not in LEISURE:
+                continue
+            shopping = self._free_time(
+                builder,
+                agent,
+                appointment.start - 20,
+                ctx,
+                visited,
+                max_blocks=1,
+                shopping=shopping,
+            )
+            # Long creux avant le rendez-vous : on l'attend chez soi. Court : on part
+            # directement (un aller-retour à la maison pour 20 minutes serait absurde).
+            if appointment.start - 20 - builder.cursor > 60:
+                builder.add(
+                    appointment.start - 20,
+                    ActivityType.RELAX,
+                    agent.profile.home,
+                    "temps libre à la maison",
+                    "relax_home",
+                )
+            _label, recipe = LEISURE[place.kind]
+            builder.add(
+                appointment.end,
+                ActivityType.LEISURE,
+                place.id,
+                appointment.label_for(agent.id),
+                recipe,
+                punctual=True,
+            )
+            visited.add(place.id)
+        return shopping
 
     def _day_off(
         self,

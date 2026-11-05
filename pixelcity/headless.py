@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TextIO
 
+from pixelcity.memory.stream import MemoryKind
 from pixelcity.sim.clock import format_absolute_minute
 from pixelcity.sim.events import Event, EventKind
 from pixelcity.sim.narration import VERBOSE_KINDS, describe
@@ -84,9 +85,20 @@ def _print_summary(sim: Simulation, report: HeadlessReport, out: TextIO) -> None
     sources = ", ".join(f"{name} {n}" for name, n in sorted(convs.by_source.items())) or "aucune"
     flirts = sum(relation.flirts for _, relation in sim.relations.pairs())
     print(f"Conversations : {counts} (répliques : {sources}) · flirts : {flirts}", file=out)
+    booked = sim.appointments.items
+    kept = sum(1 for ap in booked if ap.kept)
+    memories = sum(len(agent.memory) for agent in sim.agents.values())
+    print(
+        f"Mémoire : {memories} souvenirs · {sim.minds.reflections} réflexions · "
+        f"rendez-vous : {len(booked)} pris, {kept} tenus",
+        file=out,
+    )
     for agent in sim.agents.values():
         needs = " · ".join(f"{kind.label} {agent.needs[kind]:.0f}" for kind in NeedKind)
         top = sorted(agent.minutes_by_recipe.items(), key=lambda item: -item[1])[:5]
         hours = ", ".join(f"{name} {minutes / 60:.1f} h" for name, minutes in top)
         print(f"- {agent.name} ({agent.profile.job}) : {needs}", file=out)
         print(f"    temps passé : {hours}", file=out)
+        thought = agent.memory.recent(1, (MemoryKind.REFLECTION,))
+        if thought:
+            print(f"    pense : « {thought[0].text} »", file=out)

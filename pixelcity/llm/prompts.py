@@ -20,7 +20,9 @@ from pixelcity.llm.types import (
     ConversationKind,
     ConversationRequest,
     ConversationResult,
+    MeetProposal,
     Persona,
+    ReflectionRequest,
 )
 
 MAX_LINES = 6
@@ -34,6 +36,9 @@ ITEM_NAMES = {
     "meal": "un repas",
     "groceries": "ses courses",
 }
+
+MAX_INSIGHTS = 3
+MAX_INSIGHT_CHARS = 140
 
 SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -55,6 +60,36 @@ SCHEMA: dict[str, Any] = {
     },
     "required": ["lines", "affinity_delta", "flirt", "summary"],
 }
+
+
+def schema_for(req: ConversationRequest) -> dict[str, Any]:
+    """Le schéma JSON imposé au modèle ; avec un rendez-vous possible, la liste des lieux."""
+    if not req.meet_places:
+        return SCHEMA
+    schema = {**SCHEMA, "properties": dict(SCHEMA["properties"])}
+    schema["properties"]["meet"] = {
+        "type": "object",
+        "properties": {
+            "agreed": {"type": "boolean"},
+            "place": {"type": "string", "enum": [pid for pid, _ in req.meet_places]},
+            "hour": {"type": "string"},
+        },
+        "required": ["agreed", "place", "hour"],
+    }
+    return schema
+
+
+REFLECTION_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {"insights": {"type": "array", "items": {"type": "string"}}},
+    "required": ["insights"],
+}
+
+REFLECTION_SYSTEM = (
+    "Tu es la petite voix intérieure d'un habitant d'une simulation de vie. À partir de "
+    "ses souvenirs, tu écris ce qu'il en retient, à la première personne, en français. "
+    "Réponds uniquement avec le JSON demandé."
+)
 
 SYSTEM = (
     "Tu écris les dialogues d'une simulation de vie en pixel art, dans une petite ville "
@@ -90,6 +125,10 @@ def build_user_prompt(req: ConversationRequest) -> str:
     lines.append(f"Leur relation : {req.relation}.")
     if req.memory:
         lines.append(f"Leur dernière conversation : {req.memory}")
+    for persona, memories in ((a, req.memories_a), (b, req.memories_b)):
+        if memories:
+            lines.append(f"Ce que {persona.name} a en tête :")
+            lines.extend(f"  - {memory}" for memory in memories)
     if req.kind is ConversationKind.COUNTER:
         item = ITEM_NAMES.get(req.item or "", req.item or "quelque chose")
         lines.append(f"Situation : {a.name} est client et vient acheter {item} ; {b.name} le sert.")
@@ -104,6 +143,8 @@ def build_user_prompt(req: ConversationRequest) -> str:
             f"Situation : {a.name} et {b.name} se croisent et s'arrêtent pour discuter un moment."
         )
         count = "4 à 6"
+    if req.occasion:
+        lines.append(f"Occasion : {req.occasion}.")
     if req.flirt_allowed:
         lines.append(
             "Ils se plaisent un peu : un flirt léger est possible s'il vient naturellement "
@@ -112,6 +153,13 @@ def build_user_prompt(req: ConversationRequest) -> str:
         )
     else:
         lines.append("Pas de flirt ni de drague : flirt vaut false.")
+    if req.meet_places:
+        places = ", ".join(f"{name} (« {pid} »)" for pid, name in req.meet_places)
+        lines.append(
+            "S'ils en ont envie, ils peuvent convenir de se revoir DEMAIN entre 14:00 et 18:00 "
+            f"dans l'un de ces lieux : {places}. Mets meet.agreed à true seulement si une "
+            "réplique le propose et que l'autre accepte, avec le lieu et l'heure (« 17:30 »)."
+        )
     lines.append(
         f"Écris {count} répliques en alternant, en commençant par « {a.id} ». "
         f"speaker vaut « {a.id} » ou « {b.id} ». "
@@ -161,4 +209,42 @@ def parse_result(req: ConversationRequest, data: dict[str, Any], source: str) ->
     delta = max(-MAX_DELTA, min(MAX_DELTA, delta))
     summary = clean_text(str(data.get("summary", "")))[:200] or None
     flirt = bool(data.get("flirt", False)) and req.flirt_allowed
-    return ConversationResult(tuple(lines), delta, flirt, summary, source)
+    meet = None
+    raw_meet = data.get("meet")
+    allowed_places = {pid for pid, _ in req.meet_places}
+    if isinstance(raw_meet, dict) and raw_meet.get("agreed") is True:
+        place = str(raw_meet.get("place", ""))
+        if place in allowed_places:
+            hour = raw_meet.get("hour")
+            meet = MeetProposal(place, str(hour) if hour else None)
+    return ConversationResult(tuple(lines), delta, flirt, summary, source, meet)
+
+
+def build_reflection_prompt(req: ReflectionRequest) -> str:
+    p = req.persona
+    lines = [
+        _persona_text(p),
+        "",
+        f"Souvenirs récents de {p.name}, du plus ancien au plus récent :",
+    ]
+    lines.extend(f"{i}. {memory}" for i, memory in enumerate(req.memories, start=1))
+    lines.append(
+        f"Écris 1 à {MAX_INSIGHTS} pensées de {p.name}, à la première personne, de moins de 20 "
+        "mots chacune, qui GÉNÉRALISENT ces souvenirs : ce qu'il pense des gens qu'il a vus, "
+        "ses habitudes, ses envies, ses inquiétudes. Pas de simple résumé d'un souvenir."
+    )
+    return "\n".join(lines)
+
+
+def parse_reflection(data: dict[str, Any]) -> tuple[str, ...]:
+    raw = data.get("insights")
+    if not isinstance(raw, list):
+        raise ValueError("pas de pensées")
+    insights: list[str] = []
+    for item in raw[:MAX_INSIGHTS]:
+        text = clean_text(str(item))[:MAX_INSIGHT_CHARS]
+        if len(text) >= 8:
+            insights.append(text)
+    if not insights:
+        raise ValueError("pensées vides")
+    return tuple(insights)

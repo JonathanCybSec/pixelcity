@@ -21,33 +21,53 @@ from typing import Protocol
 
 from pixelcity.config.schemas import DialoguesConfig
 from pixelcity.llm.client import LlmError, OllamaClient
-from pixelcity.llm.prompts import SCHEMA, SYSTEM, build_user_prompt, parse_result
+from pixelcity.llm.prompts import (
+    REFLECTION_SCHEMA,
+    REFLECTION_SYSTEM,
+    SYSTEM,
+    build_reflection_prompt,
+    build_user_prompt,
+    parse_reflection,
+    parse_result,
+    schema_for,
+)
 from pixelcity.llm.settings import LlmSettings
-from pixelcity.llm.types import ChatLine, ConversationKind, ConversationRequest, ConversationResult
+from pixelcity.llm.types import (
+    ChatLine,
+    ConversationKind,
+    ConversationRequest,
+    ConversationResult,
+    MeetProposal,
+    ReflectionRequest,
+    ReflectionResult,
+)
 
 
-class Pending(Protocol):
+class Pending[T](Protocol):
+    """Une réponse à venir (le « ticket » du restaurant). Générique : conversation ou réflexion."""
+
     def done(self) -> bool: ...
-    def result(self) -> ConversationResult: ...
+    def result(self) -> T: ...
     def cancel(self) -> None: ...
 
 
 class DialogueBackend(Protocol):
     blocking: bool  # True : la simulation attend la réponse (mode headless)
 
-    def submit(self, request: ConversationRequest) -> Pending: ...
+    def submit(self, request: ConversationRequest) -> Pending[ConversationResult]: ...
+    def submit_reflection(self, request: ReflectionRequest) -> Pending[ReflectionResult]: ...
     def status(self) -> str: ...
     def close(self) -> None: ...
 
 
-class _Ready:
-    def __init__(self, result: ConversationResult) -> None:
+class _Ready[T]:
+    def __init__(self, result: T) -> None:
         self._result = result
 
     def done(self) -> bool:
         return True
 
-    def result(self) -> ConversationResult:
+    def result(self) -> T:
         return self._result
 
     def cancel(self) -> None:
@@ -69,8 +89,12 @@ class ScriptedBackend:
     def close(self) -> None:
         pass
 
-    def submit(self, request: ConversationRequest) -> Pending:
+    def submit(self, request: ConversationRequest) -> Pending[ConversationResult]:
         return _Ready(self.generate(request))
+
+    def submit_reflection(self, request: ReflectionRequest) -> Pending[ReflectionResult]:
+        # Pas de LLM : la simulation tirera ses réflexions de règles simples.
+        return _Ready(ReflectionResult(()))
 
     def generate(self, req: ConversationRequest) -> ConversationResult:
         rng = random.Random(req.seed)
@@ -96,18 +120,28 @@ class ScriptedBackend:
             if need is not None:
                 who = a if req.a.need else b
                 texts.append((who, rng.choice(street.need).format(need=need)))
+            meet = None
+            if req.meet_places and req.affinity >= 10 and rng.random() < 0.4:
+                place_id, place_name = rng.choice(req.meet_places)
+                hour = rng.choice(("15:00", "16:30", "17:30"))
+                texts.append(
+                    (a, f"On se retrouve demain vers {hour.replace(':', 'h')}, {place_name} ?")
+                )
+                texts.append((b, "Avec plaisir, à demain !"))
+                meet = MeetProposal(place_id, hour)
             texts.append((b if texts[-1][0] == a else a, rng.choice(street.closer)))
+            return ConversationResult(tuple(ChatLine(s, t) for s, t in texts), None, meet=meet)
         return ConversationResult(tuple(ChatLine(s, t) for s, t in texts), None)
 
 
-class _LlmPending:
-    def __init__(self, future: Future[ConversationResult]) -> None:
+class _LlmPending[T]:
+    def __init__(self, future: Future[T]) -> None:
         self._future = future
 
     def done(self) -> bool:
         return self._future.done()
 
-    def result(self) -> ConversationResult:
+    def result(self) -> T:
         return self._future.result()
 
     def cancel(self) -> None:
@@ -177,7 +211,7 @@ class OllamaBackend:
             return self.fallback.generate(req)
         try:
             data = self.client.chat_json(
-                model, SYSTEM, build_user_prompt(req), SCHEMA, seed=req.seed
+                model, SYSTEM, build_user_prompt(req), schema_for(req), seed=req.seed
             )
             result = parse_result(req, data, model)
         except (LlmError, ValueError) as exc:
@@ -189,9 +223,36 @@ class OllamaBackend:
         self._set_state(f"IA locale : {model}")
         return result
 
-    def submit(self, request: ConversationRequest) -> Pending:
+    def submit(self, request: ConversationRequest) -> Pending[ConversationResult]:
         # Le test de connexion passe en premier dans la file : la requête l'attend.
         pending = _LlmPending(self._pool.submit(self._generate, request))
+        if self.blocking:
+            pending.result()
+        return pending
+
+    def _reflect(self, req: ReflectionRequest) -> ReflectionResult:
+        available = self._available or set()
+        model = next(
+            (m for m in (req.persona.model, self.settings.model) if m and m in available), None
+        )
+        if model is None:
+            return ReflectionResult(())
+        try:
+            data = self.client.chat_json(
+                model,
+                REFLECTION_SYSTEM,
+                build_reflection_prompt(req),
+                REFLECTION_SCHEMA,
+                temperature=0.6,
+                seed=req.seed,
+            )
+            return ReflectionResult(parse_reflection(data), model)
+        except (LlmError, ValueError):
+            self.failures += 1
+            return ReflectionResult(())
+
+    def submit_reflection(self, request: ReflectionRequest) -> Pending[ReflectionResult]:
+        pending = _LlmPending(self._pool.submit(self._reflect, request))
         if self.blocking:
             pending.result()
         return pending
