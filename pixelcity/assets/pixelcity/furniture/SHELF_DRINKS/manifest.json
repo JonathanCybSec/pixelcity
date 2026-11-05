@@ -1,0 +1,14 @@
+{
+  "id": "SHELF_DRINKS",
+  "name": "Rayon boissons",
+  "category": "shop",
+  "canPlaceOnWalls": false,
+  "canPlaceOnSurfaces": false,
+  "backgroundTiles": 1,
+  "type": "asset",
+  "file": "SHELF_DRINKS.png",
+  "width": 32,
+  "height": 32,
+  "footprintW": 2,
+  "footprintH": 2
+}

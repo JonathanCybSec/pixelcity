@@ -1,0 +1,14 @@
+{
+  "id": "WEIGHT_BENCH",
+  "name": "Banc de musculation",
+  "category": "gym",
+  "canPlaceOnWalls": false,
+  "canPlaceOnSurfaces": false,
+  "backgroundTiles": 1,
+  "type": "asset",
+  "file": "WEIGHT_BENCH.png",
+  "width": 16,
+  "height": 32,
+  "footprintW": 1,
+  "footprintH": 2
+}

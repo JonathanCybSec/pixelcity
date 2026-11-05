@@ -1,0 +1,14 @@
+{
+  "id": "WINDOW",
+  "name": "Fenêtre",
+  "category": "wall",
+  "canPlaceOnWalls": true,
+  "canPlaceOnSurfaces": false,
+  "backgroundTiles": 0,
+  "type": "asset",
+  "file": "WINDOW.png",
+  "width": 16,
+  "height": 32,
+  "footprintW": 1,
+  "footprintH": 2
+}

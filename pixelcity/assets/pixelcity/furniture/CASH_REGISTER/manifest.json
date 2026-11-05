@@ -1,0 +1,14 @@
+{
+  "id": "CASH_REGISTER",
+  "name": "Caisse enregistreuse",
+  "category": "shop",
+  "canPlaceOnWalls": false,
+  "canPlaceOnSurfaces": true,
+  "backgroundTiles": 0,
+  "type": "asset",
+  "file": "CASH_REGISTER.png",
+  "width": 16,
+  "height": 16,
+  "footprintW": 1,
+  "footprintH": 1
+}

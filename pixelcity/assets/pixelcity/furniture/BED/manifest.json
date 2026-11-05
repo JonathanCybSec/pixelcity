@@ -1,0 +1,17 @@
+{
+  "id": "BED",
+  "name": "Lit",
+  "category": "bedroom",
+  "canPlaceOnWalls": false,
+  "canPlaceOnSurfaces": false,
+  "backgroundTiles": 1,
+  "overlays": {
+    "occupied": "BED_COVER.png"
+  },
+  "type": "asset",
+  "file": "BED.png",
+  "width": 16,
+  "height": 48,
+  "footprintW": 1,
+  "footprintH": 3
+}

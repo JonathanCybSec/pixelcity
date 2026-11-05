@@ -1,0 +1,14 @@
+{
+  "id": "KITCHEN_SINK",
+  "name": "Évier",
+  "category": "kitchen",
+  "canPlaceOnWalls": false,
+  "canPlaceOnSurfaces": false,
+  "backgroundTiles": 1,
+  "type": "asset",
+  "file": "KITCHEN_SINK.png",
+  "width": 16,
+  "height": 32,
+  "footprintW": 1,
+  "footprintH": 2
+}

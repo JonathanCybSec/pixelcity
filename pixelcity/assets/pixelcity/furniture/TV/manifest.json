@@ -1,0 +1,49 @@
+{
+  "id": "TV",
+  "name": "Télévision",
+  "category": "electronics",
+  "canPlaceOnWalls": false,
+  "canPlaceOnSurfaces": false,
+  "backgroundTiles": 1,
+  "type": "group",
+  "groupType": "state",
+  "members": [
+    {
+      "type": "asset",
+      "id": "TV_OFF",
+      "file": "TV_OFF.png",
+      "width": 32,
+      "height": 32,
+      "footprintW": 2,
+      "footprintH": 2,
+      "state": "off"
+    },
+    {
+      "type": "group",
+      "groupType": "animation",
+      "state": "on",
+      "members": [
+        {
+          "type": "asset",
+          "id": "TV_ON_1",
+          "file": "TV_ON_1.png",
+          "width": 32,
+          "height": 32,
+          "footprintW": 2,
+          "footprintH": 2,
+          "frame": 0
+        },
+        {
+          "type": "asset",
+          "id": "TV_ON_2",
+          "file": "TV_ON_2.png",
+          "width": 32,
+          "height": 32,
+          "footprintW": 2,
+          "footprintH": 2,
+          "frame": 1
+        }
+      ]
+    }
+  ]
+}
