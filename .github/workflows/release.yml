@@ -1,0 +1,51 @@
+name: Exécutable Windows
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-exe:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Installer
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install . pyinstaller
+      - name: Construire PixelCity.exe
+        run: >
+          pyinstaller --noconfirm --onedir --windowed --name PixelCity
+          --paths .
+          --add-data "pixelcity/config;pixelcity/config"
+          --add-data "pixelcity/assets;pixelcity/assets"
+          --collect-submodules pixelcity
+          packaging/launcher.py
+      - name: Test de fumée
+        shell: pwsh
+        env:
+          SDL_VIDEODRIVER: dummy
+        run: |
+          $p = Start-Process dist/PixelCity/PixelCity.exe -ArgumentList "--headless","--days","0.1","--quiet" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { exit 1 }
+      - name: Zipper
+        shell: pwsh
+        run: |
+          Copy-Item README.md, CREDITS.md dist/PixelCity/
+          Compress-Archive -Path dist/PixelCity -DestinationPath PixelCity-Windows.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PixelCity-Windows
+          path: PixelCity-Windows.zip
+      - name: Publier la Release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create ${{ github.ref_name }} PixelCity-Windows.zip --title "PixelCity ${{ github.ref_name }}" --notes "Dézippe, puis double-clique sur PixelCity\PixelCity.exe."
