@@ -1,4 +1,5 @@
 name: Exécutable Windows
+# Construit PixelCity.exe sur Windows et publie la Release de la version du pyproject.
 
 on:
   push:
