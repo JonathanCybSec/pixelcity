@@ -204,6 +204,15 @@ minuit : importance cumulée ≥ 18 ─▶ réflexion (LLM, ou règles) ─▶ s
 - **Réflexion** (`sim/minds.py`) : la nuit, le LLM généralise les souvenirs marquants en 1 à 3 pensées ; sans LLM, des règles (affinités, lapins, ruptures de stock).
 - **Rendez-vous** (`sim/appointments.py`) : le LLM peut les proposer (schéma JSON avec la liste des lieux autorisés en `enum`) ; la simulation choisit le créneau réellement possible le lendemain (14:00-18:00, hors travail, lieu ouvert) et le planificateur l'insère comme bloc ponctuel. Tenu : conversation avec l'occasion dans le prompt. Manqué : souvenir et affinité -4.
 
+## 8 quinquies. Économie et transports (étape 6)
+
+- **Argent** (`sim/economy.py`) : salaire horaire crédité à chaque tick passé au travail ; revenu quotidien (retraite, bourse) et loyer (`rent` dans `city.yaml`) à minuit ; prix des articles dans `actions.yaml`. Montants arrondis au centime à chaque opération (un `float` accumule des erreurs d'arrondi ; une banque utiliserait des centimes entiers ou `Decimal`).
+- **Le comptoir vérifie qu'on peut payer** : sinon, pas de vente ; le LLM est prévenu (« le client n'a pas assez d'argent ») et le client s'en souvient.
+- **Budget serré** (`PlanningContext.tight_budget`) : sous 40 €, le planificateur écarte le café et la boulangerie pour les loisirs et les repas.
+- **Finances dans le prompt** : « fauché », « à l'aise »… colorent les conversations.
+- **Bus** (`sim/transit.py`) : 3 bus sur une boucle (voie sud vers l'est, voie nord vers l'ouest), 4 arrêts à deux quais. Le choix se fait au départ d'un trajet (`Ride` : vers le quai → attente → à bord → descendu) en comparant le temps de marche à l'estimation bus (marche jusqu'aux quais, attente moyenne = demi-intervalle, trajet, arrêts). À bord, l'habitant est caché et suit le bus ; la routine ne fait rien d'autre que ses besoins. Une attente de plus de 30 minutes fait renoncer.
+- **La carte s'agrandit vers l'est** (128 × 64) : troisième rue nord-sud et quartier des Mimosas. Les lieux existants gardent leurs coordonnées : les tests et les scénarios ne bougent pas.
+
 ## 9. Le planificateur
 
 `Planner` est un `Protocol` (typage structurel) : la routine appelle `plan_day()` sans savoir qui répond. `RuleBasedPlanner` construit une journée de blocs « lieu + activité + recette » en minutes absolues, sans trou par construction (`PlanBuilder`). Il tient compte :
@@ -255,6 +264,15 @@ Les YAML sont validés par Pydantic au démarrage (`extra="forbid"`, `frozen=Tru
 | Le « tofu » | Le séparateur du journal « ──── » s'affichait en carrés : Inter n'a pas les caractères de dessin de boîte. | Tirets cadratins. |
 | Les bulles du passé | À l'ouverture de la fenêtre, l'interface rejouait le journal… et affichait des répliques vieilles de trois heures. | Le rejeu alimente le journal, pas les bulles. |
 | Liens symboliques sous Windows | Un test créait des liens symboliques : il faut des droits d'administrateur sous Windows. | Inutile : le noyau ne lit que le XML de la carte. |
+
+## Pièges rencontrés pendant l'étape 6
+
+| Piège | Parade |
+|---|---|
+| Personne ne prenait le bus : exiger 20 % de gain avec des bus lents et peu fréquents | Bus plus rapides (30 cases/min), arrêts courts, 3 bus ; 5 % de gain suffit. |
+| Le studio remplaçait les 160 € de Sofia par 300 € (montant absent de la liste) | Le montant actuel est ajouté aux choix proposés. |
+| Interpoler la position du bus au demi-tour le faisait traverser toute la ville en une image | Pas d'interpolation quand le saut dépasse 4 cases. |
+| Un nom de variable réutilisé (`x` entier pour l'arrêt, puis flottant pour le bus) | mypy l'a signalé : noms distincts. |
 
 ## Pièges rencontrés pendant l'étape 5
 

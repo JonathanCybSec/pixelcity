@@ -108,7 +108,7 @@ def _persona_text(p: Persona) -> str:
         parts.append(f"  Convictions : {p.ideology} (elles colorent ses propos, sans sermon).")
     if p.speech_style:
         parts.append(f"  Façon de parler : {p.speech_style}.")
-    parts.append(f"  En ce moment : {p.doing}.")
+    parts.append(f"  En ce moment : {p.doing}. Finances : {p.finances}.")
     if p.need:
         parts.append(f"  Besoin pressant : {p.need}.")
     return "\n".join(parts)
@@ -132,11 +132,19 @@ def build_user_prompt(req: ConversationRequest) -> str:
     if req.kind is ConversationKind.COUNTER:
         item = ITEM_NAMES.get(req.item or "", req.item or "quelque chose")
         lines.append(f"Situation : {a.name} est client et vient acheter {item} ; {b.name} le sert.")
-        lines.append(
-            "L'article est disponible : la vente se fait."
-            if req.in_stock
-            else "L'article est en RUPTURE de stock : le vendeur doit s'excuser, rien n'est vendu."
-        )
+        if not req.in_stock:
+            lines.append(
+                "L'article est en RUPTURE de stock : le vendeur doit s'excuser, rien n'est vendu."
+            )
+        elif not req.can_pay:
+            lines.append(
+                f"Cela coûte {req.price:.2f} € mais le client n'a PAS assez d'argent : "
+                "rien n'est vendu, il repart gêné."
+            )
+        else:
+            lines.append(
+                f"L'article est disponible, il coûte {req.price:.2f} € : la vente se fait."
+            )
         count = "4"
     else:
         lines.append(

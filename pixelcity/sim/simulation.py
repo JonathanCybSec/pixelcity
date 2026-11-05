@@ -32,11 +32,13 @@ from pixelcity.sim.appointments import Appointments
 from pixelcity.sim.clock import SimClock
 from pixelcity.sim.context import SimContext
 from pixelcity.sim.conversation import Conversations
+from pixelcity.sim.economy import Economy
 from pixelcity.sim.events import EventKind, EventLog
 from pixelcity.sim.minds import Minds
 from pixelcity.sim.relations import Relations
 from pixelcity.sim.rng import RngRegistry
 from pixelcity.sim.service import build_desks, update_desks
+from pixelcity.sim.transit import Transit
 from pixelcity.sim.types import Pose
 from pixelcity.world.catalog import load_catalog
 from pixelcity.world.world import World, load_world
@@ -93,6 +95,8 @@ class Simulation:
         self.conversations = Conversations(dialogue or script, script)
         self.appointments = Appointments()
         self.minds = Minds(dialogue or script)
+        self.economy = Economy()
+        self.transit = Transit(self.world, config.settings.transit, self.clock)
         minutes_per_tick = self.clock.tick_seconds / 60
         self.ctx = SimContext(
             config=config,
@@ -108,8 +112,11 @@ class Simulation:
             minutes_per_tick=minutes_per_tick,
             conversations=self.conversations,
             appointments=self.appointments,
+            economy=self.economy,
+            transit=self.transit,
         )
         for agent in self.agents.values():
+            agent.money = agent.profile.money
             agent.memory.ticks_per_hour = self.clock.ticks_per_minute * 60
         # La mémoire écoute le journal : chaque événement notable devient un souvenir.
         self.events.subscribe(lambda event: self.minds.on_event(self.ctx, event))
@@ -129,9 +136,11 @@ class Simulation:
             )
         for agent in self.agents.values():
             update_agent(agent, self.ctx, self.planner)
+        self.transit.update(self.ctx)
         update_desks(self.ctx)
         self.conversations.update(self.ctx)
         self.minds.update(self.ctx)
+        self.economy.update(self.ctx)
         clock.advance()
 
     def run_ticks(self, count: int) -> None:

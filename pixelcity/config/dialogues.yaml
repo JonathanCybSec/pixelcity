@@ -81,3 +81,15 @@ street:
     - "Allez, à plus tard !"
     - "Bonne journée, à bientôt !"
     - "On se voit bientôt !"
+
+# Étape 6 : le client n'a pas de quoi payer.
+no_money:
+  - "Oh… paiement refusé. Désolé, je repasserai."
+  - "Ah zut, je n'ai pas assez sur moi…"
+  - "La carte ne passe pas. Une autre fois !"
+
+# Étape 6 : le client n'a pas de quoi payer.
+no_money:
+  - "Oh… paiement refusé. Désolé, je repasserai."
+  - "Ah zut, je n'ai pas assez sur moi…"
+  - "La carte ne passe pas. Une autre fois !"

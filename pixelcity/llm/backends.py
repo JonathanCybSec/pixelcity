@@ -102,15 +102,16 @@ class ScriptedBackend:
         a, b = req.a.id, req.b.id
         if req.kind is ConversationKind.COUNTER:
             item = req.item or ""
+            sold = req.in_stock and req.can_pay
             texts = [
                 (a, f"{rng.choice(d.greet)} {rng.choice(d.order.get(item, ('Bonjour !',)))}"),
                 (
                     b,
                     rng.choice(d.serve.get(item, ("Voilà !",)))
-                    if req.in_stock
-                    else rng.choice(d.out_of_stock),
+                    if sold
+                    else rng.choice(d.out_of_stock if not req.in_stock else d.no_money),
                 ),
-                (a, rng.choice(d.thanks if req.in_stock else d.disappointed)),
+                (a, rng.choice(d.thanks if sold else d.disappointed)),
                 (b, rng.choice(d.goodbye)),
             ]
         else:

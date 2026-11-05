@@ -93,11 +93,23 @@ def _print_summary(sim: Simulation, report: HeadlessReport, out: TextIO) -> None
         f"rendez-vous : {len(booked)} pris, {kept} tenus",
         file=out,
     )
+    shops = (
+        ", ".join(
+            f"{sim.world.places[pid].name} {amount:.0f} €"
+            for pid, amount in sorted(sim.economy.revenue.items(), key=lambda kv: -kv[1])
+        )
+        or "aucune"
+    )
+    print(
+        f"Recettes : {shops} · bus : {sim.transit.trips} trajets "
+        f"({sim.economy.transit_revenue:.0f} €)",
+        file=out,
+    )
     for agent in sim.agents.values():
         needs = " · ".join(f"{kind.label} {agent.needs[kind]:.0f}" for kind in NeedKind)
         top = sorted(agent.minutes_by_recipe.items(), key=lambda item: -item[1])[:5]
         hours = ", ".join(f"{name} {minutes / 60:.1f} h" for name, minutes in top)
-        print(f"- {agent.name} ({agent.profile.job}) : {needs}", file=out)
+        print(f"- {agent.name} ({agent.profile.job}, {agent.money:.0f} €) : {needs}", file=out)
         print(f"    temps passé : {hours}", file=out)
         thought = agent.memory.recent(1, (MemoryKind.REFLECTION,))
         if thought:

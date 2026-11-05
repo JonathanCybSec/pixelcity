@@ -6,6 +6,7 @@
 #
 # speech_style: façon de parler, donnée au LLM
 # romance     : ouvert au flirt (entre adultes, sans autre partenaire)
+# wage        : salaire horaire (€) ; allowance : revenu par jour (retraite...) ; money : économies
 # llm_model   : modèle Ollama propre à l'habitant (sinon OLLAMA_MODEL du .env)
 # sprite      : apparence, l'un des 6 personnages de pixel-agents (0 à 5)
 # personality : Big Five (OCEAN), chaque trait entre 0 et 1
@@ -26,6 +27,8 @@ agents:
     personality: {openness: 0.35, conscientiousness: 0.9, extraversion: 0.65, agreeableness: 0.75, neuroticism: 0.3}
     values: [le travail bien fait, la famille, la tradition]
     speech_style: "parle avec bonhomie, expressions du terroir, appelle les gens « mon grand »"
+    wage: 14
+    money: 450
 
   - id: lea
     name: Léa Martin
@@ -41,6 +44,8 @@ agents:
     personality: {openness: 0.7, conscientiousness: 0.75, extraversion: 0.8, agreeableness: 0.6, neuroticism: 0.45}
     values: [l'indépendance, l'amitié, la curiosité]
     speech_style: "vive et enjouée, beaucoup d'humour, tutoie facilement"
+    wage: 18
+    money: 650
     romance: true
 
   - id: karim
@@ -59,6 +64,8 @@ agents:
     personality: {openness: 0.8, conscientiousness: 0.7, extraversion: 0.45, agreeableness: 0.85, neuroticism: 0.35}
     values: [la transmission, la justice, la famille]
     speech_style: "posé et pédagogue, pose des questions, vouvoie au début"
+    wage: 17
+    money: 500
 
   - id: sofia
     name: Sofia Rossi
@@ -75,6 +82,8 @@ agents:
     personality: {openness: 0.55, conscientiousness: 0.65, extraversion: 0.7, agreeableness: 0.8, neuroticism: 0.5}
     values: [la générosité, la famille, la musique]
     speech_style: "chaleureuse, glisse parfois un mot d'italien"
+    wage: 12
+    money: 160
     romance: true
 
   - id: hugo
@@ -92,6 +101,8 @@ agents:
     personality: {openness: 0.85, conscientiousness: 0.5, extraversion: 0.9, agreeableness: 0.7, neuroticism: 0.4}
     values: [la créativité, la liberté, les rencontres]
     speech_style: "décontracté, un peu d'argot jeune, phrases courtes"
+    wage: 12
+    money: 90
     romance: true
 
   - id: paul
@@ -105,3 +116,5 @@ agents:
     personality: {openness: 0.6, conscientiousness: 0.6, extraversion: 0.55, agreeableness: 0.8, neuroticism: 0.25}
     values: [la convivialité, le jardinage, l'histoire locale]
     speech_style: "courtois et un peu nostalgique, raconte volontiers le passé"
+    allowance: 55
+    money: 900

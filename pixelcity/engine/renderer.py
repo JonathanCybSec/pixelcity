@@ -33,8 +33,10 @@ from pixelcity.engine.sprites import (
     WALK_CYCLE,
     SpriteBank,
 )
+from pixelcity.engine.vehicles import bus_sprite, stop_sprite
 from pixelcity.resources import assets_dir
 from pixelcity.sim.simulation import Simulation
+from pixelcity.sim.transit import NORTH_PLATFORM, SOUTH_PLATFORM, STOPS
 from pixelcity.sim.types import Anim, Pose
 
 BACKGROUND = (22, 24, 30)
@@ -67,6 +69,8 @@ class WorldRenderer:
         self._scaled: pygame.Surface | None = None
         self._outlines: dict[int, pygame.Surface] = {}
         self.selected_id: str | None = None
+        self._bus_images: dict[bool, pygame.Surface] = {}
+        self._stop_image: pygame.Surface | None = None
         self.hovered_id: str | None = None
         self.last_origin = (0, 0)  # coin haut-gauche du monde dessiné (en pixels monde)
 
@@ -140,6 +144,7 @@ class WorldRenderer:
             if sleeper is not None:
                 image = self._bed_with_sleeper(prop, image, sleeper)
             drawables.append(Drawable(prop.z, prop.x, prop.y, image))
+        self._vehicles(sim, view, alpha, drawables)
         for agent in sim.agents.values():
             if agent.pose in (Pose.HIDDEN, Pose.LIE):
                 continue
@@ -154,6 +159,39 @@ class WorldRenderer:
                         Drawable(drawable.z - 0.01, drawable.x - 1, drawable.y - 1, outline)
                     )
         return drawables
+
+    def _vehicles(
+        self, sim: Simulation, view: pygame.Rect, alpha: float, drawables: list[Drawable]
+    ) -> None:
+        transit = sim.transit
+        if not transit.enabled:
+            return
+        if not self._bus_images:
+            self._bus_images = {
+                True: bus_sprite(eastbound=True),
+                False: bus_sprite(eastbound=False),
+            }
+            self._stop_image = stop_sprite()
+        stop = self._stop_image
+        assert stop is not None
+        for x, _name in STOPS:
+            for y in (SOUTH_PLATFORM, NORTH_PLATFORM):
+                # Le poteau se dresse au bord du trottoir, côté route.
+                px = x * TILE - 8
+                py = y * TILE + (TILE - stop.get_height() + (2 if y == SOUTH_PLATFORM else -2))
+                if view.colliderect(px, py, stop.get_width(), stop.get_height()):
+                    drawables.append(Drawable(py + stop.get_height(), px, py, stop))
+        for bus in transit.buses:
+            cx, cy = transit.position(bus)
+            bx, by = bus.prev
+            if abs(cx - bx) > 4:  # demi-tour au bout de la ligne : pas d'interpolation
+                bx, by = cx, cy
+            fx = (bx + (cx - bx) * alpha + 0.5) * TILE
+            fy = (by + (cy - by) * alpha + 0.5) * TILE
+            image = self._bus_images[transit.eastbound(bus)]
+            left, top = round(fx - image.get_width() / 2), round(fy - image.get_height() + 6)
+            if view.colliderect(left, top, image.get_width(), image.get_height()):
+                drawables.append(Drawable(top + image.get_height(), left, top, image))
 
     def _character(self, agent: Agent, alpha: float, seconds: float) -> Drawable | None:
         sheet = self.bank.character(agent.profile.sprite)

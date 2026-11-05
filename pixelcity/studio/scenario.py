@@ -61,6 +61,7 @@ class AgentDraft:
     ideology: str = ""
     llm_model: str = ""  # vide : modèle par défaut du .env
     romance: bool = False
+    money: float = 300.0  # économies de départ
 
     def to_model(self, agent_id: str) -> AgentModel:
         """Convertit en fiche validée par Pydantic (lève ValidationError si incohérent)."""
@@ -80,6 +81,9 @@ class AgentDraft:
             "ideology": self.ideology.strip(),
             "llm_model": self.llm_model.strip() or None,
             "romance": self.romance and self.age >= 18,
+            "wage": job.wage,
+            "allowance": job.allowance,
+            "money": self.money,
         }
         if job.place is not None:
             data["work"] = {
@@ -107,6 +111,7 @@ class AgentDraft:
             ideology=model.ideology,
             llm_model=model.llm_model or "",
             romance=model.romance,
+            money=model.money,
         )
 
 
@@ -219,6 +224,7 @@ def random_draft(scenario: Scenario, config: GameConfig, rng: random.Random) -> 
         speech_style=rng.choice(SPEECH_STYLES),
         ideology=rng.choice(IDEOLOGIES),
         romance=age >= 18 and rng.random() < 0.5,
+        money=float(rng.choice((40, 120, 300, 600, 1200))),
     )
 
 

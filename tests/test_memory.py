@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import random
 from collections.abc import Callable
 
 from pixelcity.config.loader import GameConfig
@@ -68,7 +69,9 @@ def test_un_rendez_vous_evite_les_heures_de_travail(config: GameConfig) -> None:
 
 
 def _persona(pid: str) -> Persona:
-    return Persona(pid, pid.title(), 30, "Testeur", "bavard", (), "", "", "flâne", None, None)
+    return Persona(
+        pid, pid.title(), 30, "Testeur", "bavard", (), "", "", "flâne", "ça va", None, None
+    )
 
 
 def test_le_rendez_vous_propose_par_le_llm_est_verifie() -> None:
@@ -105,13 +108,21 @@ def test_une_semaine_de_souvenirs_de_pensees_et_de_rendez_vous(
     make_sim: Callable[..., Simulation],
 ) -> None:
     sim = make_sim()
-    sim.run_days(8.8)
+    # Des habitants qui s'apprécient déjà : de quoi se donner rendez-vous vite.
+    ids = list(sim.agents)
+    for i, a in enumerate(ids):
+        for b in ids[i + 1 :]:
+            relation, _, _ = sim.relations.meet(
+                sim.agents[a].profile, sim.agents[b].profile, 0, random.Random(0)
+            )
+            relation.affinity = 35.0
+    sim.run_days(5)
     for agent in sim.agents.values():
         kinds = {m.kind for m in agent.memory.memories}
         assert MemoryKind.CONVERSATION in kinds, agent.id
     assert events_of(sim, EventKind.REFLECTION)
     booked = events_of(sim, EventKind.APPOINTMENT_SET)
     kept = events_of(sim, EventKind.APPOINTMENT_KEPT)
-    assert booked and kept  # Hugo et Paul, dimanche → lundi 17:30 au parc
+    assert booked and kept
     plan = sim.agents[str(kept[0].agent_id)].memory.recent(50, (MemoryKind.PLAN,))
     assert plan and "Rendez-vous" in plan[0].text

@@ -33,6 +33,7 @@ SERVE_LINGER_MINUTES = 2.0  # le vendeur reste un peu au comptoir après le dern
 STROLL_PAUSE = (2.0, 7.0)  # pause entre deux points de promenade (minutes)
 SPOT_CANDIDATES = 4  # au plus 4 calculs de chemin par recherche d'objet
 UNTIL_END_FALLBACK = 60  # durée d'une étape `until_end` sans fin de bloc
+MAX_BUS_WAIT_MINUTES = 30
 MAX_SPOT_WAIT_MINUTES = 12  # toilettes occupées, plan de travail pris : on patiente un peu
 MAX_PHASES_PER_TICK = 8  # garde-fou : plusieurs phases peuvent s'enchaîner dans un tick
 
@@ -90,6 +91,8 @@ def suspend_task(agent: Agent, task: Task, ctx: SimContext) -> None:
         _leave_queue(agent, task, ctx)
         task.phase = Phase.SEEK
     task.walk_goal = None
+    task.no_bus = False
+    ctx.transit.drop(agent.id)
     agent.path, agent.path_index, agent.progress = (), 0, 0.0
     if agent.pose is not Pose.WALK:
         agent.pose = Pose.STAND
@@ -104,6 +107,7 @@ def cancel_task(agent: Agent, task: Task, ctx: SimContext) -> None:
     if task.switched is not None:
         _switch_off(task)
     task.walk_goal = None
+    ctx.transit.drop(agent.id)
     agent.anim = Anim.IDLE
     if agent.pose in (Pose.SIT, Pose.LIE, Pose.HIDDEN, Pose.RUN):
         agent.pose = Pose.STAND
@@ -180,6 +184,8 @@ def _travel(agent: Agent, task: Task, ctx: SimContext) -> bool:
         task.phase = Phase.SEEK
         task.walk_goal = None
         return True
+    if not _ride(agent, task, ctx):
+        return False
     if task.walk_goal is None:
         entrance = place.nearest_entrance(agent.tile)
         if not walk_to(agent, entrance, ctx.world.pathfinder):
@@ -200,6 +206,19 @@ def _travel(agent: Agent, task: Task, ctx: SimContext) -> bool:
                 label=task.label,
                 recipe=task.recipe_id,
             )
+        if not task.no_bus and agent.place_id is None:
+            ride = ctx.transit.plan(
+                agent,
+                entrance,
+                len(agent.path),
+                ctx.config.settings.walk_speed_tiles_per_minute,
+                agent.money,
+            )
+            task.no_bus = True  # une seule décision par trajet
+            if ride is not None and walk_to(agent, ride.platform, ctx.world.pathfinder):
+                ctx.transit.rides[agent.id] = ride
+                task.walk_goal = None
+                return False
     if not step_along(agent, ctx.walk_tiles_per_tick):
         return False
     task.walk_goal = None
@@ -219,6 +238,30 @@ def _travel(agent: Agent, task: Task, ctx: SimContext) -> bool:
     ctx.emit(EventKind.PLACE_CLOSED, agent.id, place.id, reason=access.value, waiting=False)
     _fail(agent, task, ctx, f"{place.name} : {_ACCESS_TEXT.get(access, access.value)}")
     return False
+
+
+def _ride(agent: Agent, task: Task, ctx: SimContext) -> bool:
+    """Le trajet en bus, s'il y en a un. True : on peut (re)prendre la marche normale."""
+    ride = ctx.transit.ride_of(agent.id)
+    if ride is None:
+        return True
+    if ride.state == "onboard":
+        return False
+    if ride.state == "to_stop":
+        if step_along(agent, ctx.walk_tiles_per_tick):
+            ride.state = "waiting"
+            ride.since = ctx.now
+            agent.facing = Facing.DOWN if ride.eastbound else Facing.UP
+        return False
+    if ride.state == "waiting":
+        if ctx.now - ride.since < MAX_BUS_WAIT_MINUTES:
+            return False
+        ctx.transit.drop(agent.id)  # le bus ne vient pas : on y va à pied
+    else:  # descendu : on finit à pied depuis l'arrêt
+        ctx.transit.drop(agent.id)
+    task.walk_goal = None
+    task.no_bus = True
+    return True
 
 
 _ACCESS_TEXT = {Access.CLOSED: "fermé", Access.FULL: "complet", Access.FORBIDDEN: "interdit"}

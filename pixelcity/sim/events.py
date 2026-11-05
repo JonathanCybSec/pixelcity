@@ -59,6 +59,10 @@ class EventKind(StrEnum):
     APPOINTMENT_SET = "appointment_set"
     APPOINTMENT_KEPT = "appointment_kept"
     APPOINTMENT_MISSED = "appointment_missed"
+    # Étape 6 : argent et transports.
+    MONEY_LOW = "money_low"
+    BUS_BOARDED = "bus_boarded"
+    BUS_ALIGHTED = "bus_alighted"
 
 
 @dataclass(frozen=True, slots=True)

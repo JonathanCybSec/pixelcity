@@ -26,7 +26,9 @@ MONDAY = 0
 
 
 def _persona(pid: str, name: str, age: int = 30) -> Persona:
-    return Persona(pid, name, age, "Testeur", "bavard", (), "", "", "se promène", None, None)
+    return Persona(
+        pid, name, age, "Testeur", "bavard", (), "", "", "se promène", "ça va", None, None
+    )
 
 
 def _request(**changes: Any) -> ConversationRequest:

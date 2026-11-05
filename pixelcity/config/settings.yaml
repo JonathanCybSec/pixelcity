@@ -42,3 +42,17 @@ needs:
 
 # Marcher fatigue un peu.
 walking_effects: {energy: -1}
+
+# Étape 6 : l'argent. Les prix sont dans actions.yaml (items), les loyers
+# dans city.yaml, les salaires dans agents.yaml.
+economy:
+  tight_budget: 40     # en dessous : pas de déjeuner dehors ni de café
+  comfortable: 400     # au-dessus : « à l'aise » (dit au LLM)
+
+# Étape 6 : une ligne de bus sur l'avenue, d'ouest en est et retour.
+transit:
+  buses: 3
+  speed_tiles_per_minute: 30   # 7 à 8 fois la marche
+  dwell_minutes: 0.5           # arrêt à chaque station
+  ticket: 1.5
+  min_walk_tiles: 45           # en dessous, on marche

@@ -98,6 +98,15 @@ class Minds:
                         about=(them.id,),
                         place_id=event.place_id,
                     )
+            case EventKind.SERVICE_DONE if data.get("reason") == "money":
+                remember(
+                    ctx,
+                    agent,
+                    MemoryKind.OBSERVATION,
+                    f"Je n'avais pas assez d'argent pour payer à {place_name}, c'était gênant",
+                    5,
+                    place_id=event.place_id,
+                )
             case EventKind.SERVICE_DONE if data.get("ok") is False:
                 remember(
                     ctx,
@@ -141,9 +150,10 @@ class Minds:
                 )[:REFLECTION_MEMORIES]
                 recent.sort(key=lambda m: m.uid)
                 from pixelcity.sim.conversation import persona
+                from pixelcity.sim.economy import Economy
 
                 request = ReflectionRequest(
-                    persona(agent),
+                    persona(agent, Economy.situation(agent, ctx)),
                     memory_lines(ctx, recent),
                     seed=ctx.rngs.stream("reflection").randrange(1 << 30),
                 )

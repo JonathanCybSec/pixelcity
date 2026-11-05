@@ -15,13 +15,20 @@ map: city.tmx
 
 places:
   # --- Résidentiel -------------------------------------------------------
-  - {id: maison_dupont, name: Maison Dupont, kind: home, capacity: 4, hours: always, activities: [sleep, eat, hygiene, toilet, relax]}
-  - {id: maison_benali, name: Maison Benali, kind: home, capacity: 5, hours: always, activities: [sleep, eat, hygiene, toilet, relax]}
-  - {id: maison_girard, name: Maison Girard, kind: home, capacity: 4, hours: always, activities: [sleep, eat, hygiene, toilet, relax]}
-  - {id: maison_lilas, name: Maison des Lilas, kind: home, capacity: 4, hours: always, activities: [sleep, eat, hygiene, toilet, relax]}
-  - {id: appart_1, name: Appartement 1 (Tilleuls), kind: home, capacity: 3, hours: always, activities: [sleep, eat, hygiene, toilet, relax]}
-  - {id: appart_2, name: Appartement 2 (Tilleuls), kind: home, capacity: 3, hours: always, activities: [sleep, eat, hygiene, toilet, relax]}
-  - {id: appart_3, name: Appartement 3 (Tilleuls), kind: home, capacity: 3, hours: always, activities: [sleep, eat, hygiene, toilet, relax]}
+  - {id: maison_dupont, name: Maison Dupont, kind: home, capacity: 4, hours: always, activities: [sleep, eat, hygiene, toilet, relax], rent: 28}
+  - {id: maison_benali, name: Maison Benali, kind: home, capacity: 5, hours: always, activities: [sleep, eat, hygiene, toilet, relax], rent: 28}
+  - {id: maison_girard, name: Maison Girard, kind: home, capacity: 4, hours: always, activities: [sleep, eat, hygiene, toilet, relax], rent: 28}
+  - {id: maison_lilas, name: Maison des Lilas, kind: home, capacity: 4, hours: always, activities: [sleep, eat, hygiene, toilet, relax], rent: 28}
+  - {id: appart_1, name: Appartement 1 (Tilleuls), kind: home, capacity: 3, hours: always, activities: [sleep, eat, hygiene, toilet, relax], rent: 20}
+  - {id: appart_2, name: Appartement 2 (Tilleuls), kind: home, capacity: 3, hours: always, activities: [sleep, eat, hygiene, toilet, relax], rent: 20}
+  - {id: appart_3, name: Appartement 3 (Tilleuls), kind: home, capacity: 3, hours: always, activities: [sleep, eat, hygiene, toilet, relax], rent: 20}
+  # Quartier des Mimosas (étape 6), à l'est de la troisième rue.
+  - {id: mimosas_1, name: Mimosas 1, kind: home, capacity: 3, hours: always, activities: [sleep, eat, hygiene, toilet, relax], rent: 16}
+  - {id: mimosas_2, name: Mimosas 2, kind: home, capacity: 3, hours: always, activities: [sleep, eat, hygiene, toilet, relax], rent: 16}
+  - {id: mimosas_3, name: Mimosas 3, kind: home, capacity: 3, hours: always, activities: [sleep, eat, hygiene, toilet, relax], rent: 16}
+  - {id: mimosas_4, name: Mimosas 4, kind: home, capacity: 3, hours: always, activities: [sleep, eat, hygiene, toilet, relax], rent: 16}
+  - {id: mimosas_5, name: Mimosas 5, kind: home, capacity: 3, hours: always, activities: [sleep, eat, hygiene, toilet, relax], rent: 16}
+  - {id: mimosas_6, name: Mimosas 6, kind: home, capacity: 3, hours: always, activities: [sleep, eat, hygiene, toilet, relax], rent: 16}
 
   # --- Commerces ----------------------------------------------------------
   - id: boulangerie

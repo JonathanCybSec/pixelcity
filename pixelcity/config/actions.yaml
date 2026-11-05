@@ -18,10 +18,10 @@
 
 items:
   provisions: {label: provisions}
-  groceries: {label: sac de courses, stores_as: {provisions: 10}}
-  bread: {label: sandwich}
-  coffee: {label: café}
-  meal: {label: plat du jour}
+  groceries: {label: sac de courses, stores_as: {provisions: 10}, price: 38}
+  bread: {label: sandwich, price: 5.5}
+  coffee: {label: café, price: 2.5}
+  meal: {label: plat du jour, price: 13}
   lunchbox: {label: gamelle}
 
 recipes:

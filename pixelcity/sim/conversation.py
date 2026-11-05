@@ -30,6 +30,7 @@ from pixelcity.llm.backends import DialogueBackend, Pending, ScriptedBackend
 from pixelcity.llm.types import ConversationKind, ConversationRequest, ConversationResult, Persona
 from pixelcity.memory.stream import MemoryKind
 from pixelcity.sim.appointments import MEET_PLACES, Appointment, parse_hour
+from pixelcity.sim.economy import Economy
 from pixelcity.sim.events import EventKind
 from pixelcity.sim.minds import MISSED_AFFINITY, memory_lines, remember, stamp
 from pixelcity.sim.types import MINUTES_PER_DAY, Anim, Facing, NeedKind, PlaceKind, Pose
@@ -123,6 +124,8 @@ class Conversations:
         *,
         item: str | None = None,
         in_stock: bool = True,
+        can_pay: bool = True,
+        price: float = 0.0,
         occasion: str | None = None,
         appointment: Appointment | None = None,
     ) -> Conversation:
@@ -147,8 +150,8 @@ class Conversations:
             )
         request = ConversationRequest(
             kind=kind,
-            a=persona(a),
-            b=persona(b),
+            a=persona(a, Economy.situation(a, ctx)),
+            b=persona(b, Economy.situation(b, ctx)),
             place=place.name if place is not None else "dans la rue",
             hour=_hhmm(ctx),
             relation=relation_text,
@@ -156,6 +159,8 @@ class Conversations:
             flirt_allowed=flirt_allowed(a, b, relation.affinity if relation else 0.0),
             item=item,
             in_stock=in_stock,
+            can_pay=can_pay,
+            price=price,
             seed=ctx.rngs.stream("conversation").randrange(1 << 30),
             memories_a=_recall(ctx, a, b, place_name),
             memories_b=_recall(ctx, b, a, place_name),
@@ -527,7 +532,7 @@ def _traits(agent: Agent) -> str:
     return ", ".join(word for word in words if word) or "ordinaire"
 
 
-def persona(agent: Agent) -> Persona:
+def persona(agent: Agent, finances: str = "") -> Persona:
     need_kind = min(NeedKind, key=lambda kind: agent.needs[kind])
     need = NEED_PHRASES[need_kind] if agent.needs[need_kind] < NEED_THRESHOLD else None
     profile = agent.profile
@@ -541,6 +546,7 @@ def persona(agent: Agent) -> Persona:
         speech_style=profile.speech_style,
         ideology=profile.ideology,
         doing=agent.status_text(),
+        finances=finances,
         need=need,
         model=profile.llm_model,
     )
