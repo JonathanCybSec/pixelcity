@@ -179,6 +179,15 @@ réponse validée (prompts.parse_result) → bulles espacées selon leur longueu
 - **Réglages** : `.env` (voir `.env.example`), lu sans dépendance ; les variables d'environnement l'emportent. Un habitant peut avoir son modèle (`llm_model` dans `agents.yaml`).
 - **Déterminisme** : garanti avec le script (les tests). Avec un LLM, la graine est transmise à Ollama mais la génération dépend du matériel et du temps de réponse : on l'accepte, c'est le prix du langage naturel.
 
+## 8 ter. Le studio et les scénarios (étape 4)
+
+- `pixelcity/studio/` (sans pygame) : `presets.py` (métiers, façons de parler, idéologies, noms), `scenario.py` (brouillons `AgentDraft`, validation lisible, lecture et écriture YAML atomique dans le dossier de l'utilisateur).
+- **Des métiers préréglés plutôt qu'un éditeur d'horaires** : un préréglage est cohérent par construction (lieu de travail valide, horaires de jour, réveil et coucher compatibles avec les règles de `SleepModel`). L'intitulé reste libre.
+- **Brouillon ≠ fiche** : on enregistre la clé du métier, pas ses horaires ; `AgentDraft.to_model()` produit un `AgentModel` validé par Pydantic, puis on réutilise la validation croisée de `loader.py`. Une seule source de vérité.
+- **Interface en mode immédiat** (`ui/forms.py`) : chaque image redessine le formulaire, qui lit et écrit directement le brouillon. Saisie par l'événement `TEXTINPUT` (accents, touches mortes, AZERTY).
+- **Lanceur** (`engine/launcher.py`) : une machine à états menu → studio → partie → menu, dans une seule fenêtre. `GameApp` accepte une fenêtre existante et renvoie « menu » ou « quit ».
+- **Robustesse face aux villes imprévues** : un commerce sans employé reste fermé (`Simulation._close_unstaffed_shops`) ; une place occupée (toilettes, plan de travail) fait patienter jusqu'à 12 minutes au lieu d'échouer en boucle ; un service qui finit tard déplace les courses au matin.
+
 ## 9. Le planificateur
 
 `Planner` est un `Protocol` (typage structurel) : la routine appelle `plan_day()` sans savoir qui répond. `RuleBasedPlanner` construit une journée de blocs « lieu + activité + recette » en minutes absolues, sans trou par construction (`PlanBuilder`). Il tient compte :
@@ -230,6 +239,15 @@ Les YAML sont validés par Pydantic au démarrage (`extra="forbid"`, `frozen=Tru
 | Le « tofu » | Le séparateur du journal « ──── » s'affichait en carrés : Inter n'a pas les caractères de dessin de boîte. | Tirets cadratins. |
 | Les bulles du passé | À l'ouverture de la fenêtre, l'interface rejouait le journal… et affichait des répliques vieilles de trois heures. | Le rejeu alimente le journal, pas les bulles. |
 | Liens symboliques sous Windows | Un test créait des liens symboliques : il faut des droits d'administrateur sous Windows. | Inutile : le noyau ne lit que le XML de la carte. |
+
+## Pièges rencontrés pendant l'étape 4
+
+| Piège | Parade |
+|---|---|
+| Deux collègues, une seule toilette : 350 échecs « rien de libre » en 4 jours | Attente de la place (12 min max) avant d'abandonner. |
+| Un serveur (11 h - 19 h) ne trouvait jamais le supermarché ouvert : frigo vide, faim à zéro | Courses avant le service quand le frigo est bas. |
+| Une ville sans boulanger : les habitants faisaient la queue devant un comptoir vide | Commerce fermé s'il n'a aucun employé. |
+| L'intitulé « Caissière » devenait « Caissier » en passant par le préréglage | Champ `job_title` libre, distinct de la clé du métier. |
 
 ## Pièges rencontrés pendant l'étape 3
 

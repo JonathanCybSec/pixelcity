@@ -26,6 +26,7 @@ class Persona:
     traits: str  # personnalité résumée en mots (« bavard, chaleureux »)
     values: tuple[str, ...]
     speech_style: str
+    ideology: str
     doing: str  # ce qu'il est en train de faire
     need: str | None  # son besoin le plus pressant, s'il y en a un
     model: str | None  # modèle LLM propre à cet habitant (None : celui par défaut)

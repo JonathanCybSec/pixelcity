@@ -217,6 +217,7 @@ class AgentModel(StrictModel):
     values: tuple[str, ...] = ()
     # Étape 3 : ce qui nourrit les conversations.
     speech_style: str = ""  # « phrases courtes, tutoie tout le monde »
+    ideology: str = ""  # convictions, vision du monde (« écologiste convaincu »)
     llm_model: str | None = None  # modèle Ollama propre à cet habitant
     # Le flirt n'est possible qu'entre deux adultes ouverts à la romance et
     # sans autre partenaire. `partner` : l'id de son ou sa partenaire.

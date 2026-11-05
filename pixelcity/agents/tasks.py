@@ -58,6 +58,7 @@ class Task:
     created: int  # minute absolue
     # Fin des étapes `until_end` (et des boucles de métier) : la fin du bloc.
     ends_at: int | None = None
+    seek_since: float | None = None  # depuis quand on attend qu'une place se libère
     block: PlanBlock | None = None
     need: NeedKind | None = None  # URGENT : le besoin à combler
     desk_uid: str | None = None  # SERVE : le comptoir à tenir
