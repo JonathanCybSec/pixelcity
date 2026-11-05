@@ -45,6 +45,11 @@ class Agent:
     speech: Speech | None = None
     memory: MemoryStream = field(default_factory=lambda: MemoryStream(360))
     conversation: int | None = None  # conversation en ville en cours (on s'arrête pour parler)
+    # Étape 6 : l'argent (euros) et le bus.
+    money: float = 0.0
+    income: float = 0.0
+    expenses: float = 0.0
+    bus: int | None = None  # numéro du bus à bord duquel il voyage
 
     # --- Où il est, ce qu'il veut faire ---------------------------------------------
     place_id: str | None = None
@@ -128,6 +133,8 @@ class Agent:
 
     def status_text(self) -> str:
         """Phrase courte pour l'interface : « cuisine », « en route : déjeuner »."""
+        if self.bus is not None:
+            return f"dans le bus n°{self.bus}"
         task = self.task
         if task is None:
             return "ne fait rien de particulier"

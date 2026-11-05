@@ -267,7 +267,7 @@ def _agent_card_content(
         label(
             screen,
             texts,
-            f"{agent.profile.job} · {agent.profile.age} ans",
+            f"{agent.profile.job} · {agent.profile.age} ans · {agent.money:.0f} €",
             (x0 + 64, y + 27),
             size=12,
             color=TEXT_2,
@@ -494,6 +494,16 @@ def place_card(f: UiFrame, place_id: str, slide: float) -> pygame.Rect:
         max_width=inner - state_chip.width - 8,
     )
     y += 36
+    revenue = f.sim.economy.revenue.get(place.id)
+    rent = f.sim.config.place(place.id).rent
+    money_text = None
+    if revenue:
+        money_text = f"Recettes : {revenue:.2f} € · {f.sim.economy.sales[place.id]} ventes"
+    elif rent:
+        money_text = f"Loyer : {rent:.0f} € par jour"
+    if money_text is not None:
+        label(screen, texts, money_text, (x0, y - 6), size=12, color=TEXT_2)
+        y += 20
     y = _section(f, f"Présents ({len(occupants)})", x0, y)
     if not occupants:
         label(screen, texts, "personne", (x0, y), size=12, color=MUTED)

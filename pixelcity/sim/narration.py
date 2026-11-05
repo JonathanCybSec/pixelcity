@@ -88,6 +88,13 @@ def describe(event: Event, agent_names: dict[str, str], place_names: dict[str, s
             if not data.get("before"):
                 return f"{who} et {other} font connaissance"
             return f"{who} et {other} : {_STAGE_TEXT.get(stage, stage)}"
+        case EventKind.BUS_BOARDED:
+            stop, to = data.get("stop"), data.get("to")
+            return f"{who} monte dans le bus n°{data.get('bus')} à « {stop} » (→ {to})"
+        case EventKind.BUS_ALIGHTED:
+            return f"{who} descend du bus à « {data.get('stop')} »"
+        case EventKind.MONEY_LOW:
+            return f"{who} est presque à sec ({data.get('money')} €)"
         case EventKind.REFLECTION:
             return f"{who} pense : « {data.get('text')} »"
         case EventKind.APPOINTMENT_SET:

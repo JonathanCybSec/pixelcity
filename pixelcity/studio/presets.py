@@ -28,6 +28,8 @@ class JobPreset:
     bed: str
     weekend_wake: str
     lunch_at_work: bool = False
+    wage: float = 0.0  # € de l'heure
+    allowance: float = 0.0  # € par jour (retraite, bourse, allocation)
 
 
 def _days(days: tuple[str, ...], hours: str) -> dict[str, str]:
@@ -43,6 +45,7 @@ JOBS: tuple[JobPreset, ...] = (
         "03:45",
         "21:00",
         "07:30",
+        wage=14,
     ),
     JobPreset(
         "vendeur_boulangerie",
@@ -52,6 +55,7 @@ JOBS: tuple[JobPreset, ...] = (
         "06:00",
         "22:00",
         "08:30",
+        wage=11.5,
     ),
     JobPreset(
         "barista",
@@ -62,6 +66,7 @@ JOBS: tuple[JobPreset, ...] = (
         "23:00",
         "06:15",
         lunch_at_work=True,
+        wage=12,
     ),
     JobPreset(
         "serveur",
@@ -72,6 +77,7 @@ JOBS: tuple[JobPreset, ...] = (
         "23:30",
         "09:30",
         lunch_at_work=True,
+        wage=12,
     ),
     JobPreset(
         "caissier",
@@ -81,6 +87,7 @@ JOBS: tuple[JobPreset, ...] = (
         "07:30",
         "23:00",
         "09:30",
+        wage=12,
     ),
     JobPreset(
         "employe_bureau",
@@ -90,6 +97,7 @@ JOBS: tuple[JobPreset, ...] = (
         "07:00",
         "23:00",
         "09:00",
+        wage=15,
     ),
     JobPreset(
         "comptable",
@@ -99,6 +107,7 @@ JOBS: tuple[JobPreset, ...] = (
         "07:00",
         "23:00",
         "09:00",
+        wage=18,
     ),
     JobPreset(
         "developpeur",
@@ -108,6 +117,7 @@ JOBS: tuple[JobPreset, ...] = (
         "08:00",
         "23:30",
         "10:00",
+        wage=22,
     ),
     JobPreset(
         "professeur",
@@ -117,10 +127,13 @@ JOBS: tuple[JobPreset, ...] = (
         "06:30",
         "22:30",
         "08:00",
+        wage=17,
     ),
-    JobPreset("retraite", "Retraité", None, {}, "07:00", "22:00", "07:30"),
-    JobPreset("etudiant", "Étudiant", None, {}, "08:30", "23:30", "10:30"),
-    JobPreset("sans_emploi", "En recherche d'emploi", None, {}, "08:00", "23:00", "09:00"),
+    JobPreset("retraite", "Retraité", None, {}, "07:00", "22:00", "07:30", allowance=55),
+    JobPreset("etudiant", "Étudiant", None, {}, "08:30", "23:30", "10:30", allowance=22),
+    JobPreset(
+        "sans_emploi", "En recherche d'emploi", None, {}, "08:00", "23:00", "09:00", allowance=32
+    ),
 )
 JOBS_BY_KEY = {job.key: job for job in JOBS}
 

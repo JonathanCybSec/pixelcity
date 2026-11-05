@@ -28,6 +28,7 @@ class Persona:
     speech_style: str
     ideology: str
     doing: str  # ce qu'il est en train de faire
+    finances: str  # « fauché », « à l'aise »...
     need: str | None  # son besoin le plus pressant, s'il y en a un
     model: str | None  # modèle LLM propre à cet habitant (None : celui par défaut)
 
@@ -44,6 +45,8 @@ class ConversationRequest:
     flirt_allowed: bool
     item: str | None = None  # au comptoir : ce que le client vient acheter
     in_stock: bool = True
+    can_pay: bool = True  # le client a-t-il de quoi payer ?
+    price: float = 0.0
     seed: int = 0  # pour que le script de repli reste reproductible
     # Étape 5 : les souvenirs que chacun a en tête au moment de parler.
     memories_a: tuple[str, ...] = ()

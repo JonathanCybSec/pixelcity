@@ -101,6 +101,25 @@ class NeedSpec(StrictModel):
         return self
 
 
+class TransitSettings(StrictModel):
+    """La ligne de bus (étape 6)."""
+
+    enabled: bool = True
+    buses: int = Field(2, ge=0, le=6)
+    speed_tiles_per_minute: float = Field(18.0, gt=0)
+    dwell_minutes: float = Field(1.0, ge=0)
+    ticket: float = Field(1.5, ge=0)
+    # On prend le bus seulement si la marche dépasse cette distance (en cases).
+    min_walk_tiles: int = Field(45, ge=0)
+
+
+class EconomySettings(StrictModel):
+    enabled: bool = True
+    # En dessous, on évite de dépenser (déjeuner dehors, café) : on se serre la ceinture.
+    tight_budget: float = 40.0
+    comfortable: float = 400.0
+
+
 class Settings(StrictModel):
     seed: int = 42
     time: TimeSettings = TimeSettings()
@@ -110,6 +129,8 @@ class Settings(StrictModel):
     # Effets permanents de la marche. Les effets des activités, eux, sont
     # portés par les étapes des recettes (actions.yaml).
     walking_effects: NeedEffects = {}
+    economy: EconomySettings = EconomySettings()
+    transit: TransitSettings = TransitSettings()
 
     @model_validator(mode="after")
     def _check_completeness(self) -> Self:
@@ -136,6 +157,7 @@ class PlaceModel(StrictModel):
     # Ce que seuls les employés du lieu peuvent faire, à toute heure
     # (le boulanger arrive avant l'ouverture de la boutique).
     staff_activities: tuple[ActivityType, ...] = ()
+    rent: float = Field(0.0, ge=0)  # loyer par jour (logements), prélevé à minuit
 
     @model_validator(mode="after")
     def _check_consistency(self) -> Self:
@@ -223,6 +245,11 @@ class AgentModel(StrictModel):
     # sans autre partenaire. `partner` : l'id de son ou sa partenaire.
     romance: bool = False
     partner: Slug | None = None
+    # Étape 6 : l'argent. Salaire horaire (payé au fil des heures travaillées),
+    # revenu quotidien (retraite, bourse, allocation), économies de départ.
+    wage: float = Field(0.0, ge=0)
+    allowance: float = Field(0.0, ge=0)
+    money: float = 300.0
 
 
 class AgentsConfig(StrictModel):
@@ -341,6 +368,7 @@ class RecipeModel(StrictModel):
 
 class ItemModel(StrictModel):
     label: str
+    price: float = Field(0.0, ge=0)  # prix de vente au comptoir, en euros
     stores_as: dict[Slug, int] = {}  # sac de courses → 6 provisions dans le frigo
 
 
@@ -388,6 +416,7 @@ class DialoguesConfig(StrictModel):
     goodbye: tuple[str, ...]
     out_of_stock: tuple[str, ...]
     street: StreetDialogues
+    no_money: tuple[str, ...] = ("Ah… la carte ne passe pas. Désolé.",)
 
 
 def _ensure_unique(ids: list[str], what: str) -> None:

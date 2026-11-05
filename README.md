@@ -8,13 +8,18 @@ Inspiré du papier *Generative Agents* (Stanford, 2023, la ville « Smallville �
 
 ## Ce que l'on voit
 
-- **Une ville de 96 × 64 tuiles** : quatre maisons, une résidence de trois appartements, une boulangerie, un café, un supermarché, des bureaux, une école, une salle de sport et un parc. Pas de toits : on voit tout ce qui se passe à l'intérieur.
+- **Une ville de 128 × 64 tuiles** : quatre maisons, la résidence des Tilleuls (trois appartements), le quartier des Mimosas (six appartements), une boulangerie, un café, un supermarché, des bureaux, une école, une salle de sport et un parc. Pas de toits : on voit tout ce qui se passe à l'intérieur.
 - **Des besoins comblés par des gestes visibles** : pour dîner, un habitant sort des ingrédients du frigo (s'il en reste), épluche les légumes, allume la cuisinière, s'assoit à table, puis fait la vaisselle. Douche le matin, toilettes, courses rangées dans le frigo en rentrant, gamelle préparée quand il n'y a rien d'ouvert à midi...
 - **Des commerces qui vivent** : on fait la queue, le boulanger lâche son pétrin pour servir, client et vendeur échangent quelques répliques (bulles), la vitrine peut se vider. Sans caissière, la caisse du supermarché passe en libre-service.
 - **Des conversations écrites par une IA locale** (Ollama) : au comptoir, et en ville quand deux habitants se croisent. Chacun parle selon son caractère et sa façon de parler, évoque ce qu'il fait ou ce dont il a besoin, et se souvient de leur dernière discussion. Sans Ollama, des répliques scriptées prennent le relais.
 - **Une mémoire** : chaque habitant garde ses souvenirs (conversations, déboires, rencontres), s'en sert pour parler (« la dernière fois, tu m'avais dit… ») et, la nuit, en tire des pensées (« je me sens proche de Léa »). La fiche d'un habitant montre ce qu'il a « en tête ».
 - **Des rendez-vous tenus** : « on se retrouve demain au parc vers 17 h 30 ? » s'inscrit dans le plan des deux habitants ; le lendemain, ils y vont. Un lapin se paie en affinité.
 - **Des relations** : chaque échange rapproche (ou non) deux habitants ; entre adultes ouverts à la romance qui s'apprécient, un flirt léger peut naître.
+- **De l'argent** : salaires au fil des heures travaillées, retraite ou allocation chaque nuit, loyer chaque nuit, prix au comptoir. Un habitant fauché renonce au café et au déjeuner dehors ; sans de quoi payer, il repart les mains vides (et s'en souvient). Chaque commerce cumule ses recettes.
+- **Une ligne de bus** : trois bus font l'aller-retour sur l'avenue, quatre arrêts. Un habitant prend le bus quand c'est plus rapide que de marcher (et qu'il a 1,50 € pour le ticket).
+
+![Le bus passe devant la boulangerie](docs/bus.png)
+
 - **Le jour et la nuit** : crépuscule orangé, nuit bleutée, fenêtres éclairées là où quelqu'un est réveillé, lampadaires.
 
 ![Au comptoir de la boulangerie](docs/boulangerie.png)
@@ -28,7 +33,7 @@ Inspiré du papier *Generative Agents* (Stanford, 2023, la ville « Smallville �
 | 3 | Conversations par LLM local (Ollama) : en ville et au comptoir, affinités, flirt (entre adultes uniquement) | **fait** |
 | 4 | Studio : créer les habitants de chaque simulation (LLM, idéologie, façon de parler, apparence) | **fait** |
 | 5 | Mémoire complète (flux, récupération, réflexion) et rendez-vous tenus | **fait** |
-| 6 | Économie, plus de bâtiments, transports | à venir |
+| 6 | Économie (salaires, loyers, prix, recettes), quartier des Mimosas, ligne de bus | **fait** |
 | 7 | Module Test de produit et exports | à venir |
 | 8 | Sauvegarde, optimisation, 50 à 100 habitants | à venir |
 | 9 | Exécutable Windows (.exe) avec PyInstaller | **fait** (Release GitHub, mise à jour à chaque push) |
@@ -47,7 +52,7 @@ Au lancement, un menu propose de jouer avec les habitants d'origine, de relancer
 - **voix** : façon de parler et idéologie (préréglages ou texte libre), modèle d'IA Ollama propre à l'habitant ;
 - **vie sentimentale** : ouvert(e) au flirt ou non (jamais avant 18 ans).
 
-« Au hasard » crée un habitant crédible en un clic. Les scénarios sont enregistrés dans `%APPDATA%\PixelCity\scenarios\` (Windows) ou `~/.local/share/pixelcity/scenarios/`, en YAML lisible. Un commerce sans aucun employé dans le scénario reste fermé (sauf la caisse automatique du supermarché). La ville actuelle compte 7 logements d'un lit : 7 habitants au plus pour l'instant.
+« Au hasard » crée un habitant crédible en un clic. Les scénarios sont enregistrés dans `%APPDATA%\PixelCity\scenarios\` (Windows) ou `~/.local/share/pixelcity/scenarios/`, en YAML lisible. Un commerce sans aucun employé dans le scénario reste fermé (sauf la caisse automatique du supermarché). La ville compte 13 logements d'un lit ; un scénario accueille jusqu'à 12 habitants.
 
 En partie, **Échap** (sans rien de sélectionné) ramène au menu.
 

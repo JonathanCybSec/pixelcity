@@ -79,6 +79,8 @@ def update_agent(agent: Agent, ctx: SimContext, planner: Planner) -> None:
     _ensure_plan(agent, ctx, planner)
     _sync_block_task(agent, ctx)
     _apply_needs(agent, ctx)
+    if agent.bus is not None:
+        return  # dans le bus : on attend son arrêt (c'est le bus qui le déplace)
     _check_urgent_needs(agent, ctx)
     _check_service_duty(agent, ctx)
 
@@ -111,6 +113,7 @@ def _ensure_plan(agent: Agent, ctx: SimContext, planner: Planner) -> None:
             rng=ctx.rngs.stream(f"planner:{agent.id}"),
             walk_speed=ctx.config.settings.walk_speed_tiles_per_minute,
             appointments=tuple(ctx.appointments.for_agent(agent.id, day)),
+            tight_budget=agent.money < ctx.config.settings.economy.tight_budget,
         )
         agent.plan = planner.plan_day(agent, day, planning)
         agent.block_index = 0

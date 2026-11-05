@@ -54,6 +54,8 @@ class Session:
     ends_tick: int
     lines: list[Line]
     conversation: Conversation | None = None
+    price: float = 0.0
+    can_pay: bool = True
 
 
 @dataclass(slots=True, eq=False)
@@ -201,12 +203,22 @@ def _try_start_session(desk: ServiceDesk, ctx: SimContext) -> None:
     place = ctx.world.places[desk.place_id]
     stock = desk.stock(place.container_with(item))
     in_stock = stock is not None and stock.has(item)
+    item_model = ctx.config.actions.items.get(item)
+    price = item_model.price if item_model is not None else 0.0
+    can_pay = ctx.economy.can_pay(customer, price)
     ticks_per_minute = ctx.clock.ticks_per_minute
     conversation = None
     lines: list[Line] = []
     if staff is not None:
         conversation = ctx.conversations.start(
-            ctx, ConversationKind.COUNTER, customer, staff, item=item, in_stock=in_stock
+            ctx,
+            ConversationKind.COUNTER,
+            customer,
+            staff,
+            item=item,
+            in_stock=in_stock,
+            can_pay=can_pay,
+            price=price,
         )
         minutes = SESSION_MINUTES  # durée minimale ; on attend aussi la fin de l'échange
         # Face à face : le client regarde le comptoir, le vendeur regarde le client.
@@ -214,7 +226,9 @@ def _try_start_session(desk: ServiceDesk, ctx: SimContext) -> None:
         staff.anim = Anim.TALK
     else:
         rng = ctx.rngs.stream(f"dialogue:{desk.uid}")
-        text = rng.choice(ctx.config.dialogues.self_checkout)
+        text = rng.choice(
+            ctx.config.dialogues.self_checkout if can_pay else ctx.config.dialogues.no_money
+        )
         lines = [Line(now, customer.id, customer.id, text)]
         minutes = SESSION_MINUTES / 2
     customer.facing = Facing.UP
@@ -223,10 +237,12 @@ def _try_start_session(desk: ServiceDesk, ctx: SimContext) -> None:
         customer=customer.id,
         staff=staff.id if staff is not None else None,
         item=item,
-        in_stock=in_stock,
+        in_stock=in_stock and can_pay,  # pas d'argent : pas de vente
         ends_tick=now + round(minutes * ticks_per_minute),
         lines=lines,
         conversation=conversation,
+        price=price,
+        can_pay=can_pay,
     )
     ctx.emit(
         EventKind.SERVICE_STARTED,
@@ -270,6 +286,7 @@ def _continue_session(desk: ServiceDesk, ctx: SimContext) -> None:
         stock = desk.stock(place.container_with(session.item))
         if stock is not None and stock.take(session.item):
             customer.give(session.item)
+            ctx.economy.pay(ctx, customer, desk.place_id, session.price)
             ok = True
             if stock.count(session.item) == 0:
                 ctx.emit(EventKind.STOCK_EMPTY, session.staff, desk.place_id, item=session.item)
@@ -289,6 +306,7 @@ def _continue_session(desk: ServiceDesk, ctx: SimContext) -> None:
         staff=session.staff,
         item=session.item,
         ok=ok,
+        reason="" if ok or session.can_pay else "money",
     )
 
 

@@ -30,7 +30,7 @@ ROOT = Path(__file__).resolve().parents[1]
 ASSETS = ROOT / "pixelcity" / "assets"
 OUT = ASSETS / "maps"
 TILE = 16
-MAP_W, MAP_H = 96, 64
+MAP_W, MAP_H = 128, 64  # étape 6 : la ville s'étend vers l'est
 COLUMNS = 8
 
 # --------------------------------------------------------------------------- #
@@ -516,7 +516,7 @@ def streets(city: City) -> None:
     city.fill(0, 32, MAP_W - 1, 32, "sidewalk")
     city.fill(0, 30, MAP_W - 1, 30, "road_line_h")
     city.fill(0, 31, MAP_W - 1, 31, "road")
-    for road_x in (31, 63):
+    for road_x in (31, 63, 95):
         city.fill(road_x - 1, 0, road_x - 1, MAP_H - 1, "sidewalk")
         city.fill(road_x + 2, 0, road_x + 2, MAP_H - 1, "sidewalk")
         city.fill(road_x, 0, road_x, MAP_H - 1, "road_line_v")
@@ -524,7 +524,7 @@ def streets(city: City) -> None:
         city.fill(road_x, 30, road_x + 1, 31, "road")  # carrefour
         for y in (14, 29, 32, 47):
             city.fill(road_x, y, road_x + 1, y, "crosswalk_v")
-    for x in (15, 30, 33, 47, 62, 65, 80):
+    for x in (15, 30, 33, 47, 62, 65, 80, 94, 97, 112):
         city.fill(x, 30, x, 31, "crosswalk_h")
 
 
@@ -536,7 +536,7 @@ def street_trees(city: City) -> None:
         city.put("TREE_ROUND" if x % 2 else "TREE_PINE", x, y, "")
     for x, y in ((41, 12), (51, 12)):
         city.put("PARK_BENCH", x, y, "")
-    for x, y in ((34, 45), (61, 45), (66, 50), (94, 50)):
+    for x, y in ((34, 45), (61, 45), (66, 50), (126, 13)):
         city.put("LAMPPOST", x, y, "")
     for x in range(1, 30, 4):
         city.put("BUSH", x, 0, "")
@@ -578,6 +578,16 @@ def build_city(tiles: Tileset) -> City:
     school(city, 67, 34)
     city.fill(66, 50, 94, 51, "path")
     gym(city, 70, 52)
+    # Étape 6 : quartier des Mimosas (est), six appartements de part et d'autre de l'avenue.
+    for k in range(3):
+        x0 = 99 + 9 * k
+        apartment(city, f"mimosas_{k + 1}", f"Mimosas {k + 1}", x0, 16, "sage")
+        city.set(x0 + 2, 28, "path")
+        apartment(city, f"mimosas_{k + 4}", f"Mimosas {k + 4}", x0, 34, "sage")
+        city.fill(x0 + 2, 46, x0 + 2, 47, "path")
+    city.fill(98, 14, 126, 14, "path")
+    city.fill(98, 48, 126, 48, "path")
+    city.fill(98, 46, 98, 48, "path")
     street_trees(city)
     return city
 

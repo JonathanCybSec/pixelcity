@@ -27,7 +27,14 @@ from pixelcity.llm.settings import LlmSettings
 from pixelcity.sim.simulation import Simulation
 from pixelcity.sim.types import Facing
 from pixelcity.studio import scenario as sc
-from pixelcity.studio.presets import ACCENT_COLORS, IDEOLOGIES, JOBS, JOBS_BY_KEY, SPEECH_STYLES
+from pixelcity.studio.presets import (
+    ACCENT_COLORS,
+    IDEOLOGIES,
+    JOBS,
+    JOBS_BY_KEY,
+    SPEECH_STYLES,
+    JobPreset,
+)
 from pixelcity.ui.forms import Form
 from pixelcity.ui.glass import Glass, rounded
 from pixelcity.ui.theme import (
@@ -54,6 +61,7 @@ TRAIT_LABELS = {
     "neuroticism": ("Émotivité", "calme", "anxieux"),
 }
 AGES = list(range(16, 91))
+SAVINGS = [0.0, 40.0, 120.0, 300.0, 600.0, 1200.0, 3000.0]
 
 
 @dataclass(slots=True)
@@ -237,6 +245,12 @@ class MenuScreen:
 class StudioChoice:
     action: str  # "menu", "play"
     scenario: sc.Scenario | None = None
+
+
+def _income(job: JobPreset) -> str:
+    if job.wage:
+        return f"{job.wage:g} €/h"
+    return f"{job.allowance:g} €/jour" if job.allowance else "sans revenu"
 
 
 class StudioScreen:
@@ -494,7 +508,7 @@ class StudioScreen:
         label(
             screen,
             shared.texts,
-            shared.texts.fit(f"{workplace} · {hours} · lever {job.wake}", 12, a.width),
+            shared.texts.fit(f"{workplace} · {hours} · {_income(job)}", 12, a.width),
             (a.x, y + 94),
             size=12,
             color=TEXT_2,
@@ -589,6 +603,18 @@ class StudioScreen:
                 size=13,
                 color=TEXT_2,
             )
+        y += 64
+        _section(shared, screen, "Économies de départ", (c.x, y))
+        # Un montant hors liste (agents.yaml) reste proposé tel quel : ne rien écraser.
+        amounts = sorted({*SAVINGS, draft.money})
+        draft.money = amounts[
+            form.choice(
+                screen,
+                pygame.Rect(c.x, y + 18, c.width, 32),
+                [f"{amount:.0f} €" for amount in amounts],
+                amounts.index(draft.money),
+            )
+        ]
 
     def _preset_text(
         self,

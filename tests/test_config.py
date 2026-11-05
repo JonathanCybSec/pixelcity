@@ -13,7 +13,7 @@ from pixelcity.sim.types import NeedKind
 
 def test_la_config_par_defaut_est_valide(config: GameConfig) -> None:
     assert len(config.agents.agents) == 6
-    assert len(config.city.places) == 14
+    assert len(config.city.places) == 20
     assert set(config.settings.needs) == set(NeedKind)
     # Chaque type de lieu de travail a sa recette de métier.
     workplaces = {config.place(a.work.place).kind for a in config.agents.agents if a.work}

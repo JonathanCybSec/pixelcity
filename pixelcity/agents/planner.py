@@ -50,6 +50,8 @@ HOME_LUNCH_MAX_COMMUTE = 12  # au-delà, rentrer déjeuner chez soi prend trop d
 # Fonction de pondération : (profil, type de lieu) -> poids du tirage au sort.
 type WeightFn = Callable[[AgentModel, PlaceKind], float]
 
+SPENDING_PLACES = {PlaceKind.CAFE, PlaceKind.BAKERY}  # où un loisir ou un repas coûte
+
 LEISURE: dict[PlaceKind, tuple[str, str]] = {
     PlaceKind.GYM: ("séance de sport", "gym_session"),
     PlaceKind.PARK: ("promenade au parc", "park_walk"),
@@ -85,6 +87,8 @@ class PlanningContext:
     walk_speed: float  # tuiles par minute
     # Étape 5 : rendez-vous pris la veille, à caser dans la journée.
     appointments: tuple[Appointment, ...] = ()
+    # Étape 6 : budget serré → pas de déjeuner dehors ni de café.
+    tight_budget: bool = False
 
 
 class Planner(Protocol):
@@ -458,6 +462,11 @@ class RuleBasedPlanner:
             and activity in place.activities
             and place.hours.is_open(day, start)
             and place.hours.is_open(day, last)
+            and not (
+                ctx.tight_budget
+                and activity in (ActivityType.EAT, ActivityType.LEISURE)
+                and place.kind in SPENDING_PLACES
+            )
         ]
         if not candidates:
             return None

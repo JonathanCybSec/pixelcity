@@ -37,7 +37,7 @@ def map_path(config: GameConfig) -> Path:
 # --------------------------------------------------------------------------- #
 def test_tous_les_lieux_sont_sur_la_carte(world: World, config: GameConfig) -> None:
     assert list(world.places) == [place.id for place in config.city.places]
-    assert (world.width, world.height) == (96, 64)
+    assert (world.width, world.height) == (128, 64)
     for place in world.places.values():
         assert place.entrances, f"{place.id} n'a pas d'entrée"
 
